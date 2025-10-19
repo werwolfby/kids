@@ -38,6 +38,23 @@
           const consonants = ['б', 'в', 'г', 'д', 'ж', 'з', 'к', 'л', 'м', 'н', 'п', 'р', 'с', 'т', 'ф', 'х', 'ц', 'ч', 'ш', 'щ'];
           const vowels = ['а', 'о', 'у', 'ы', 'э', 'я', 'ё', 'ю', 'и', 'е'];
           
+          // Проверка валидности слога по правилам русского языка
+          const isValidSyllable = (consonant, vowel) => {
+            // ЖИ, ШИ (не ЖЫ, ШЫ)
+            if ((consonant === 'ж' || consonant === 'ш') && vowel === 'ы') return false;
+            
+            // ЧА, ЩА (не ЧЯ, ЩЯ)
+            if ((consonant === 'ч' || consonant === 'щ') && vowel === 'я') return false;
+            
+            // ЧУ, ЩУ (не ЧЮ, ЩЮ)
+            if ((consonant === 'ч' || consonant === 'щ') && vowel === 'ю') return false;
+            
+            // После Ж, Ш, Ч, Щ, Ц не пишется Э
+            if ((consonant === 'ж' || consonant === 'ш' || consonant === 'ч' || consonant === 'щ' || consonant === 'ц') && vowel === 'э') return false;
+            
+            return true;
+          };
+          
           const backgrounds = [
             { name: 'Белый', value: 'bg-white', text: 'text-gray-800' },
             { name: 'Черный', value: 'bg-gray-900', text: 'text-white' },
@@ -57,14 +74,19 @@
           const [isUpperCase, setIsUpperCase] = useState(true);
 
           const generateRandomSyllable = () => {
-            const randomConsonant = consonants[Math.floor(Math.random() * consonants.length)];
-            const randomVowel = vowels[Math.floor(Math.random() * vowels.length)];
-            return randomConsonant + randomVowel;
+            let consonant, vowel;
+            do {
+              consonant = consonants[Math.floor(Math.random() * consonants.length)];
+              vowel = vowels[Math.floor(Math.random() * vowels.length)];
+            } while (!isValidSyllable(consonant, vowel));
+            return consonant + vowel;
           };
 
           const generateSyllableWithConsonant = (consonant) => {
-            const randomVowel = vowels[Math.floor(Math.random() * vowels.length)];
-            return consonant + randomVowel;
+            let vowel;
+            const validVowels = vowels.filter(v => isValidSyllable(consonant, v));
+            vowel = validVowels[Math.floor(Math.random() * validVowels.length)];
+            return consonant + vowel;
           };
 
           const speakSyllable = (syllable) => {
