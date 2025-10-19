@@ -207,11 +207,14 @@
           }
 
           return (
-            <div 
+            <div
               className={`min-h-screen ${backgrounds[bgIndex].value} flex flex-col items-center justify-center cursor-pointer transition-colors duration-300 overflow-hidden`}
               onClick={nextSyllable}
             >
-              <div className="absolute top-2 right-2 md:top-6 md:right-6 flex gap-2 md:gap-4 flex-wrap justify-end">
+              <div
+                className="absolute top-2 right-2 md:top-6 md:right-6 flex gap-2 md:gap-4 flex-wrap justify-end"
+                onClick={(e) => e.stopPropagation()}
+              >
                 <div className={`bg-opacity-80 ${backgrounds[bgIndex].value === 'bg-gray-900' ? 'bg-white text-gray-900' : 'bg-gray-900 text-white'} rounded-full px-3 py-2 md:px-6 md:py-3 shadow-lg text-lg md:text-2xl font-bold`}>
                   {count}
                 </div>
@@ -268,9 +271,12 @@
               </div>
 
               {mode === 'selected' && (
-                <div className={`absolute top-2 left-2 md:top-6 md:left-6 rounded-full px-3 py-2 md:px-6 md:py-3 shadow-lg ${
-                  backgrounds[bgIndex].value === 'bg-gray-900' ? 'bg-white' : 'bg-gray-900'
-                }`}>
+                <div
+                  className={`absolute top-2 left-2 md:top-6 md:left-6 rounded-full px-3 py-2 md:px-6 md:py-3 shadow-lg ${
+                    backgrounds[bgIndex].value === 'bg-gray-900' ? 'bg-white' : 'bg-gray-900'
+                  }`}
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <span className={`text-lg md:text-2xl font-bold ${
                     backgrounds[bgIndex].value === 'bg-gray-900' ? 'text-gray-900' : 'text-white'
                   }`}>
@@ -279,10 +285,10 @@
                 </div>
               )}
 
-              <div 
-                className={`transition-all duration-150 ${animate ? 'scale-75 opacity-0' : 'scale-100 opacity-100'} w-full flex justify-center`}
+              <div
+                className={`transition-all duration-150 ${animate ? 'scale-75 opacity-0' : 'scale-100 opacity-100'} w-full flex justify-center pointer-events-none`}
               >
-                <div 
+                <div
                   className={`font-bold ${backgrounds[bgIndex].text} select-none leading-none`}
                   style={{ fontSize: '45vw' }}
                 >
@@ -295,9 +301,12 @@
                 </div>
               </div>
 
-              <div className={`absolute bottom-4 md:bottom-8 text-sm md:text-xl font-semibold rounded-full px-4 py-2 md:px-8 md:py-4 ${
-                backgrounds[bgIndex].value === 'bg-gray-900' ? 'bg-white text-gray-900' : 'bg-gray-900 text-white'
-              } bg-opacity-80`}>
+              <div
+                className={`absolute bottom-4 md:bottom-8 text-sm md:text-xl font-semibold rounded-full px-4 py-2 md:px-8 md:py-4 ${
+                  backgrounds[bgIndex].value === 'bg-gray-900' ? 'bg-white text-gray-900' : 'bg-gray-900 text-white'
+                } bg-opacity-80`}
+                onClick={(e) => e.stopPropagation()}
+              >
                 Нажми ПРОБЕЛ или экран для следующего слога
               </div>
             </div>
