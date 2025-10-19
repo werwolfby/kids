@@ -74,21 +74,28 @@
           const [soundEnabled, setSoundEnabled] = useState(false);
           const [bgIndex, setBgIndex] = useState(0);
           const [isUpperCase, setIsUpperCase] = useState(true);
+          const [syllableOrder, setSyllableOrder] = useState('cv'); // 'cv' = consonant-vowel, 'vc' = vowel-consonant
 
           const generateRandomSyllable = () => {
             let consonant, vowel;
             do {
               consonant = consonants[Math.floor(Math.random() * consonants.length)];
               vowel = vowels[Math.floor(Math.random() * vowels.length)];
-            } while (!isValidSyllable(consonant, vowel));
-            return consonant + vowel;
+            } while (syllableOrder === 'cv' && !isValidSyllable(consonant, vowel));
+            return syllableOrder === 'cv' ? consonant + vowel : vowel + consonant;
           };
 
           const generateSyllableWithConsonant = (consonant) => {
             let vowel;
-            const validVowels = vowels.filter(v => isValidSyllable(consonant, v));
-            vowel = validVowels[Math.floor(Math.random() * validVowels.length)];
-            return consonant + vowel;
+            if (syllableOrder === 'cv') {
+              const validVowels = vowels.filter(v => isValidSyllable(consonant, v));
+              vowel = validVowels[Math.floor(Math.random() * validVowels.length)];
+              return consonant + vowel;
+            } else {
+              // For VC mode, no validation needed - all combinations are valid
+              vowel = vowels[Math.floor(Math.random() * vowels.length)];
+              return vowel + consonant;
+            }
           };
 
           const speakSyllable = (syllable) => {
@@ -159,7 +166,7 @@
             };
             window.addEventListener('keydown', handleKeyPress);
             return () => window.removeEventListener('keydown', handleKeyPress);
-          }, [showMenu, mode, selectedConsonant, soundEnabled, isUpperCase, currentSyllable]);
+          }, [showMenu, mode, selectedConsonant, soundEnabled, isUpperCase, currentSyllable, syllableOrder]);
 
           if (showMenu) {
             return (
@@ -168,7 +175,32 @@
                   <h1 className="text-5xl font-bold text-center mb-8 text-purple-600">
                     Учим слоги! 📚
                   </h1>
-                  
+
+                  <div className="mb-6 flex justify-center gap-4">
+                    <button
+                      onClick={() => setSyllableOrder('cv')}
+                      className={`px-8 py-4 rounded-xl text-2xl font-bold transition-all transform hover:scale-105 ${
+                        syllableOrder === 'cv'
+                          ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg'
+                          : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                      }`}
+                    >
+                      Согласная + Гласная<br/>
+                      <span className="text-3xl">БА</span>
+                    </button>
+                    <button
+                      onClick={() => setSyllableOrder('vc')}
+                      className={`px-8 py-4 rounded-xl text-2xl font-bold transition-all transform hover:scale-105 ${
+                        syllableOrder === 'vc'
+                          ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg'
+                          : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                      }`}
+                    >
+                      Гласная + Согласная<br/>
+                      <span className="text-3xl">АБ</span>
+                    </button>
+                  </div>
+
                   <div className="mb-8">
                     <button
                       onClick={() => startMode('random')}
@@ -292,12 +324,25 @@
                   className={`font-bold ${backgrounds[bgIndex].text} select-none leading-none`}
                   style={{ fontSize: '45vw' }}
                 >
-                  <span className={backgrounds[bgIndex].value === 'bg-gray-900' ? 'text-blue-400' : 'text-blue-600'}>
-                    {isUpperCase ? currentSyllable[0].toUpperCase() : currentSyllable[0]}
-                  </span>
-                  <span className={backgrounds[bgIndex].value === 'bg-gray-900' ? 'text-red-400' : 'text-red-600'}>
-                    {isUpperCase ? currentSyllable[1].toUpperCase() : currentSyllable[1]}
-                  </span>
+                  {syllableOrder === 'cv' ? (
+                    <>
+                      <span className={backgrounds[bgIndex].value === 'bg-gray-900' ? 'text-blue-400' : 'text-blue-600'}>
+                        {isUpperCase ? currentSyllable[0].toUpperCase() : currentSyllable[0]}
+                      </span>
+                      <span className={backgrounds[bgIndex].value === 'bg-gray-900' ? 'text-red-400' : 'text-red-600'}>
+                        {isUpperCase ? currentSyllable[1].toUpperCase() : currentSyllable[1]}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className={backgrounds[bgIndex].value === 'bg-gray-900' ? 'text-red-400' : 'text-red-600'}>
+                        {isUpperCase ? currentSyllable[0].toUpperCase() : currentSyllable[0]}
+                      </span>
+                      <span className={backgrounds[bgIndex].value === 'bg-gray-900' ? 'text-blue-400' : 'text-blue-600'}>
+                        {isUpperCase ? currentSyllable[1].toUpperCase() : currentSyllable[1]}
+                      </span>
+                    </>
+                  )}
                 </div>
               </div>
 
