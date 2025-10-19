@@ -133,9 +133,14 @@
           const showNextSyllable = () => {
             setAnimate(true);
             setTimeout(() => {
-              const newSyllable = mode === 'random' 
-                ? generateRandomSyllable() 
-                : generateSyllableWithConsonant(selectedConsonant);
+              let newSyllable;
+              // Keep generating until we get a different syllable
+              do {
+                newSyllable = mode === 'random'
+                  ? generateRandomSyllable()
+                  : generateSyllableWithConsonant(selectedConsonant);
+              } while (newSyllable === currentSyllable);
+
               setCurrentSyllable(newSyllable);
               setCount(prev => prev + 1);
               setAnimate(false);
