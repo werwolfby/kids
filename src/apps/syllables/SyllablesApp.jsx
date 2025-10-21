@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import SyllablesMenu from './SyllablesMenu';
 import SyllablesDisplay from './SyllablesDisplay';
+import Game3D from '../syllables-3d-game/Game3D';
 import { MODE, SYLLABLE_ORDER, BACKGROUNDS } from './constants';
+import { consonants, vowels } from '../../shared/utils/russianOrthography';
 import {
   generateRandomSyllable,
   generateSyllableWithConsonant,
@@ -101,19 +103,16 @@ const SyllablesApp = () => {
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [showMenu, mode, selectedConsonant, soundEnabled, currentSyllable, syllableOrder]);
 
-  // Handle 3D game mode - will be implemented later
+  // Handle 3D game mode
   if (mode === MODE.GAME_3D && !showMenu) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600 text-white">
-        <h1 className="text-6xl font-bold mb-8">3D Игра</h1>
-        <p className="text-2xl mb-8">Скоро будет готово!</p>
-        <button
-          onClick={() => setShowMenu(true)}
-          className="bg-white text-purple-600 px-8 py-4 rounded-xl text-2xl font-bold hover:shadow-xl transition"
-        >
-          Вернуться в меню
-        </button>
-      </div>
+      <Game3D
+        onBack={() => setShowMenu(true)}
+        consonants={consonants}
+        vowels={vowels}
+        syllableOrder={syllableOrder}
+        isUpperCase={isUpperCase}
+      />
     );
   }
 
