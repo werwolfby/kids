@@ -55,6 +55,8 @@
           const [currentQuestion, setCurrentQuestion] = useState(null);
           const [timeLeft, setTimeLeft] = useState(5);
           const [hasAnswered, setHasAnswered] = useState(false);
+          const [selectedSide, setSelectedSide] = useState(null);
+          const currentObstacleRef = useRef(null);
 
           // Generate a random syllable
           const generateSyllable = () => {
@@ -261,6 +263,40 @@
                   obstacle.position.z += moveSpeed;
                 });
 
+                // Check if current obstacle has passed the car
+                if (currentObstacleRef.current && currentObstacleRef.current.position.z > 3) {
+                  // Obstacle has passed, time for next question
+                  currentObstacleRef.current = null;
+
+                  // Move car back to center
+                  if (carRef.current) {
+                    const startX = carRef.current.position.x;
+                    const animationDuration = 500;
+                    const startTime = Date.now();
+
+                    const animateCar = () => {
+                      const elapsed = Date.now() - startTime;
+                      const progress = Math.min(elapsed / animationDuration, 1);
+                      if (carRef.current) {
+                        carRef.current.position.x = startX + (0 - startX) * progress;
+                      }
+
+                      if (progress < 1) {
+                        requestAnimationFrame(animateCar);
+                      } else {
+                        // Car is back in center, show next question
+                        const newQuestion = createNewQuestion();
+                        setCurrentQuestion(newQuestion);
+                        speakSyllable(newQuestion.correctSyllable);
+                        setTimeLeft(5);
+                        setHasAnswered(false);
+                        setSelectedSide(null);
+                      }
+                    };
+                    animateCar();
+                  }
+                }
+
                 // Remove obstacles that are behind camera
                 obstaclesRef.current = obstaclesRef.current.filter(obstacle => {
                   if (obstacle.position.z > 5) {
@@ -326,6 +362,7 @@
 
             sceneRef.current.add(cone);
             obstaclesRef.current.push(cone);
+            currentObstacleRef.current = cone; // Track this obstacle
           };
 
           // Handle answer
@@ -337,14 +374,43 @@
 
             setTotalQuestions(prev => prev + 1);
 
+            // Determine which side to use if timeout
+            const actualSide = side === 'timeout' ? (Math.random() > 0.5 ? 'left' : 'right') : side;
+            setSelectedSide(actualSide);
+
+            // Move car to the chosen lane
+            if (carRef.current) {
+              const targetX = actualSide === 'left' ? -2 : 2;
+              // Smooth animation to the target position
+              const startX = carRef.current.position.x;
+              const animationDuration = 500; // milliseconds
+              const startTime = Date.now();
+
+              const animateCar = () => {
+                const elapsed = Date.now() - startTime;
+                const progress = Math.min(elapsed / animationDuration, 1);
+                if (carRef.current) {
+                  carRef.current.position.x = startX + (targetX - startX) * progress;
+                }
+
+                if (progress < 1) {
+                  requestAnimationFrame(animateCar);
+                }
+              };
+              animateCar();
+            }
+
             if (isCorrect) {
               setCorrectAnswers(prev => prev + 1);
               setSpeed(prev => Math.min(100, prev + 2));
               setScore(prev => prev + 10);
+              // Place obstacle on the OPPOSITE side so car avoids it
+              const obstacleSide = actualSide === 'left' ? 'right' : 'left';
+              createObstacle(obstacleSide);
             } else {
               setSpeed(prev => Math.max(0, prev - 10));
-              // Create obstacle on the side that was chosen
-              createObstacle(side === 'timeout' ? (Math.random() > 0.5 ? 'left' : 'right') : side);
+              // Place obstacle on the SAME side so car hits it
+              createObstacle(actualSide);
 
               if (speed - 10 <= 0) {
                 setGameState('gameover');
@@ -352,14 +418,8 @@
               }
             }
 
-            // Next question after delay
-            setTimeout(() => {
-              const newQuestion = createNewQuestion();
-              setCurrentQuestion(newQuestion);
-              speakSyllable(newQuestion.correctSyllable);
-              setTimeLeft(5);
-              setHasAnswered(false);
-            }, 1000);
+            // The next question will be shown automatically after the obstacle passes
+            // (handled in the animation loop)
           };
 
           // Handle keyboard controls
@@ -475,7 +535,7 @@
                   <div
                     onClick={() => !hasAnswered && handleAnswer('left')}
                     className={`flex-1 font-bold text-8xl py-20 transition-all pointer-events-auto flex items-center justify-center ${
-                      hasAnswered ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-white hover:bg-opacity-10'
+                      hasAnswered ? (selectedSide === 'left' ? 'opacity-100' : 'opacity-0') : 'cursor-pointer hover:bg-white hover:bg-opacity-10'
                     }`}
                   >
                     {formatSyllable(currentQuestion.leftSyllable)}
@@ -483,7 +543,7 @@
                   <div
                     onClick={() => !hasAnswered && handleAnswer('right')}
                     className={`flex-1 font-bold text-8xl py-20 transition-all pointer-events-auto flex items-center justify-center ${
-                      hasAnswered ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-white hover:bg-opacity-10'
+                      hasAnswered ? (selectedSide === 'right' ? 'opacity-100' : 'opacity-0') : 'cursor-pointer hover:bg-white hover:bg-opacity-10'
                     }`}
                   >
                     {formatSyllable(currentQuestion.rightSyllable)}
