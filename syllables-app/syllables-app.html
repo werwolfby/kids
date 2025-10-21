@@ -274,11 +274,17 @@
                     console.log('Collision check: carX=', carX, 'obstacleX=', obstacleX, 'distance=', distance, 'obstacle Z=', obstacle.position.z);
 
                     if (distance < 1.5) {
-                      // HIT! Knock over the cone
+                      // HIT! Knock over the cone with dramatic animation
                       console.log('HIT DETECTED!');
-                      const startRotation = obstacle.rotation.z;
+                      const startRotationX = obstacle.rotation.x;
+                      const startRotationZ = obstacle.rotation.z;
+                      const startY = obstacle.position.y;
+                      const startX = obstacle.position.x;
                       const startTime = Date.now();
-                      const knockDuration = 300;
+                      const knockDuration = 600;
+
+                      // Determine which direction to knock the cone
+                      const knockDirection = carX < obstacleX ? 1 : -1;
 
                       // Change cone color to bright red when hit
                       obstacle.material.color.setHex(0xFF0000);
@@ -286,8 +292,16 @@
                       const animateKnock = () => {
                         const elapsed = Date.now() - startTime;
                         const progress = Math.min(elapsed / knockDuration, 1);
-                        obstacle.rotation.z = startRotation + (Math.PI / 2) * progress;
-                        obstacle.position.y = 0.6 - 0.4 * progress;
+                        const easeOut = 1 - Math.pow(1 - progress, 3); // Ease out cubic
+
+                        // Tumble and spin
+                        obstacle.rotation.x = startRotationX + (Math.PI * 2) * easeOut;
+                        obstacle.rotation.z = startRotationZ + (Math.PI * 1.5) * easeOut;
+
+                        // Fly to the side and up, then down
+                        obstacle.position.x = startX + knockDirection * 3 * easeOut;
+                        const bounceHeight = Math.sin(progress * Math.PI) * 1.5;
+                        obstacle.position.y = startY + bounceHeight;
 
                         if (progress < 1) {
                           requestAnimationFrame(animateKnock);
@@ -295,11 +309,52 @@
                       };
                       animateKnock();
 
-                      // Flash red on car
+                      // Camera shake
+                      const cameraStartPos = { x: cameraRef.current.position.x, y: cameraRef.current.position.y };
+                      const shakeStartTime = Date.now();
+                      const shakeDuration = 300;
+
+                      const shakeCamera = () => {
+                        const elapsed = Date.now() - shakeStartTime;
+                        const progress = Math.min(elapsed / shakeDuration, 1);
+                        const intensity = (1 - progress) * 0.15;
+
+                        cameraRef.current.position.x = cameraStartPos.x + (Math.random() - 0.5) * intensity;
+                        cameraRef.current.position.y = cameraStartPos.y + (Math.random() - 0.5) * intensity;
+
+                        if (progress < 1) {
+                          requestAnimationFrame(shakeCamera);
+                        } else {
+                          cameraRef.current.position.x = cameraStartPos.x;
+                          cameraRef.current.position.y = cameraStartPos.y;
+                        }
+                      };
+                      shakeCamera();
+
+                      // Car bounce and flash
                       if (carRef.current) {
                         const carBody = carRef.current.children[0];
                         const originalColor = carBody.material.color.clone();
                         carBody.material.color.setHex(0xFFFF00); // Bright yellow flash
+
+                        const carStartY = carRef.current.position.y;
+                        const bounceStartTime = Date.now();
+                        const bounceDuration = 200;
+
+                        const bounceCar = () => {
+                          const elapsed = Date.now() - bounceStartTime;
+                          const progress = Math.min(elapsed / bounceDuration, 1);
+                          const bounceAmount = Math.sin(progress * Math.PI * 2) * 0.2;
+                          carRef.current.position.y = carStartY + bounceAmount;
+
+                          if (progress < 1) {
+                            requestAnimationFrame(bounceCar);
+                          } else {
+                            carRef.current.position.y = carStartY;
+                          }
+                        };
+                        bounceCar();
+
                         setTimeout(() => {
                           carBody.material.color = originalColor;
                         }, 200);
