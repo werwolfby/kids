@@ -258,9 +258,61 @@
                   }
                 });
 
-                // Move obstacles
+                // Move obstacles and check for collisions
                 obstaclesRef.current.forEach(obstacle => {
                   obstacle.position.z += moveSpeed;
+
+                  // Check for collision with car (when obstacle is at car's Z position)
+                  if (!obstacle.userData.collisionHandled && obstacle.position.z > 0.5 && obstacle.position.z < 3.5) {
+                    obstacle.userData.collisionHandled = true;
+
+                    // Check if car and obstacle are on the same side
+                    const carX = carRef.current ? carRef.current.position.x : 0;
+                    const obstacleX = obstacle.position.x;
+                    const distance = Math.abs(carX - obstacleX);
+
+                    console.log('Collision check: carX=', carX, 'obstacleX=', obstacleX, 'distance=', distance, 'obstacle Z=', obstacle.position.z);
+
+                    if (distance < 1.5) {
+                      // HIT! Knock over the cone
+                      console.log('HIT DETECTED!');
+                      const startRotation = obstacle.rotation.z;
+                      const startTime = Date.now();
+                      const knockDuration = 300;
+
+                      // Change cone color to bright red when hit
+                      obstacle.material.color.setHex(0xFF0000);
+
+                      const animateKnock = () => {
+                        const elapsed = Date.now() - startTime;
+                        const progress = Math.min(elapsed / knockDuration, 1);
+                        obstacle.rotation.z = startRotation + (Math.PI / 2) * progress;
+                        obstacle.position.y = 0.6 - 0.4 * progress;
+
+                        if (progress < 1) {
+                          requestAnimationFrame(animateKnock);
+                        }
+                      };
+                      animateKnock();
+
+                      // Flash red on car
+                      if (carRef.current) {
+                        const carBody = carRef.current.children[0];
+                        const originalColor = carBody.material.color.clone();
+                        carBody.material.color.setHex(0xFFFF00); // Bright yellow flash
+                        setTimeout(() => {
+                          carBody.material.color = originalColor;
+                        }, 200);
+                      }
+                    } else {
+                      // AVOIDED! Make cone flash green
+                      console.log('AVOIDED!');
+                      obstacle.material.color.setHex(0x00FF00);
+                      setTimeout(() => {
+                        obstacle.material.color.setHex(0xFF6600);
+                      }, 300);
+                    }
+                  }
                 });
 
                 // Check if current obstacle has passed the car
@@ -351,10 +403,14 @@
             const xPosition = side === 'left' ? -2 : 2;
             cone.position.set(xPosition, 0.6, -15);
             cone.castShadow = true;
+            cone.userData.collisionHandled = false; // Initialize collision flag
+            cone.userData.side = side; // Track which side
 
             sceneRef.current.add(cone);
             obstaclesRef.current.push(cone);
             currentObstacleRef.current = cone; // Track this obstacle
+
+            console.log('Created obstacle on', side, 'at x:', xPosition);
           };
 
           // Handle answer
