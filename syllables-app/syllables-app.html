@@ -53,7 +53,6 @@
           const [correctAnswers, setCorrectAnswers] = useState(0);
           const [totalQuestions, setTotalQuestions] = useState(0);
           const [currentQuestion, setCurrentQuestion] = useState(null);
-          const [timeLeft, setTimeLeft] = useState(5);
           const [hasAnswered, setHasAnswered] = useState(false);
           const [selectedSide, setSelectedSide] = useState(null);
           const currentObstacleRef = useRef(null);
@@ -288,7 +287,6 @@
                         const newQuestion = createNewQuestion();
                         setCurrentQuestion(newQuestion);
                         speakSyllable(newQuestion.correctSyllable);
-                        setTimeLeft(5);
                         setHasAnswered(false);
                         setSelectedSide(null);
                       }
@@ -332,21 +330,6 @@
             };
           }, []);
 
-          // Timer countdown
-          useEffect(() => {
-            if (gameState !== 'playing' || hasAnswered || !currentQuestion) return;
-
-            if (timeLeft <= 0) {
-              handleAnswer('timeout');
-              return;
-            }
-
-            const timer = setTimeout(() => {
-              setTimeLeft(prev => prev - 1);
-            }, 1000);
-
-            return () => clearTimeout(timer);
-          }, [timeLeft, gameState, hasAnswered, currentQuestion]);
 
           // Create obstacles on road
           const createObstacle = (side) => {
@@ -373,14 +356,11 @@
             const isCorrect = side === currentQuestion.correctSide;
 
             setTotalQuestions(prev => prev + 1);
-
-            // Determine which side to use if timeout
-            const actualSide = side === 'timeout' ? (Math.random() > 0.5 ? 'left' : 'right') : side;
-            setSelectedSide(actualSide);
+            setSelectedSide(side);
 
             // Move car to the chosen lane
             if (carRef.current) {
-              const targetX = actualSide === 'left' ? -2 : 2;
+              const targetX = side === 'left' ? -2 : 2;
               // Smooth animation to the target position
               const startX = carRef.current.position.x;
               const animationDuration = 500; // milliseconds
@@ -402,15 +382,14 @@
 
             if (isCorrect) {
               setCorrectAnswers(prev => prev + 1);
-              setSpeed(prev => Math.min(100, prev + 2));
               setScore(prev => prev + 10);
               // Place obstacle on the OPPOSITE side so car avoids it
-              const obstacleSide = actualSide === 'left' ? 'right' : 'left';
+              const obstacleSide = side === 'left' ? 'right' : 'left';
               createObstacle(obstacleSide);
             } else {
               setSpeed(prev => Math.max(0, prev - 10));
               // Place obstacle on the SAME side so car hits it
-              createObstacle(actualSide);
+              createObstacle(side);
 
               if (speed - 10 <= 0) {
                 setGameState('gameover');
@@ -519,13 +498,6 @@
                   >
                     ☰ Меню
                   </button>
-                </div>
-              </div>
-
-              {/* Timer */}
-              <div className="absolute top-1/4 left-1/2 transform -translate-x-1/2 pointer-events-none">
-                <div className={`text-8xl font-bold ${timeLeft <= 2 ? 'text-red-500 animate-pulse' : 'text-white'} drop-shadow-lg`}>
-                  {timeLeft}
                 </div>
               </div>
 
