@@ -139,29 +139,30 @@
             directionalLight.castShadow = true;
             scene.add(directionalLight);
 
-            // Create road segments
-            const roadGeometry = new THREE.PlaneGeometry(8, 20);
+            // Create road segments with significant overlap
+            const roadGeometry = new THREE.PlaneGeometry(8, 25);
             const roadMaterial = new THREE.MeshStandardMaterial({ color: 0x333333 });
 
-            for (let i = 0; i < 5; i++) {
+            for (let i = 0; i < 8; i++) {
               const roadSegment = new THREE.Mesh(roadGeometry, roadMaterial);
               roadSegment.rotation.x = -Math.PI / 2;
-              roadSegment.position.z = -i * 20;
+              roadSegment.position.z = -i * 24; // 25 unit segments with 1 unit overlap
               roadSegment.receiveShadow = true;
+              roadSegment.userData.isRoad = true;
               scene.add(roadSegment);
               roadSegmentsRef.current.push(roadSegment);
+            }
 
-              // Add road markings (dashed line in center)
-              const markingGeometry = new THREE.PlaneGeometry(0.3, 2);
-              const markingMaterial = new THREE.MeshStandardMaterial({ color: 0xFFFFFF });
+            // Add road markings separately (dashed line in center)
+            const markingGeometry = new THREE.PlaneGeometry(0.3, 2);
+            const markingMaterial = new THREE.MeshStandardMaterial({ color: 0xFFFFFF });
 
-              for (let j = 0; j < 8; j++) {
-                const marking = new THREE.Mesh(markingGeometry, markingMaterial);
-                marking.rotation.x = -Math.PI / 2;
-                marking.position.set(0, 0.01, -i * 20 - j * 2.5);
-                scene.add(marking);
-                roadSegmentsRef.current.push(marking);
-              }
+            for (let i = 0; i < 60; i++) {
+              const marking = new THREE.Mesh(markingGeometry, markingMaterial);
+              marking.rotation.x = -Math.PI / 2;
+              marking.position.set(0, 0.01, -i * 3);
+              scene.add(marking);
+              roadSegmentsRef.current.push(marking);
             }
 
             // Create grass on sides
@@ -250,8 +251,8 @@
 
                 roadSegmentsRef.current.forEach(segment => {
                   segment.position.z += moveSpeed;
-                  if (segment.position.z > 10) {
-                    segment.position.z -= 100;
+                  if (segment.position.z > 20) {
+                    segment.position.z -= 192; // 8 segments * 24 spacing
                   }
                 });
 
@@ -470,25 +471,23 @@
 
               {/* Syllable choices */}
               {currentQuestion && (
-                <div className="absolute bottom-0 left-0 right-0 flex">
-                  <button
-                    onClick={() => handleAnswer('left')}
-                    disabled={hasAnswered}
-                    className={`flex-1 font-bold text-8xl py-20 transition-all ${
+                <div className="absolute bottom-0 left-0 right-0 flex pointer-events-none">
+                  <div
+                    onClick={() => !hasAnswered && handleAnswer('left')}
+                    className={`flex-1 font-bold text-8xl py-20 transition-all pointer-events-auto flex items-center justify-center ${
                       hasAnswered ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-white hover:bg-opacity-10'
                     }`}
                   >
                     {formatSyllable(currentQuestion.leftSyllable)}
-                  </button>
-                  <button
-                    onClick={() => handleAnswer('right')}
-                    disabled={hasAnswered}
-                    className={`flex-1 font-bold text-8xl py-20 transition-all ${
+                  </div>
+                  <div
+                    onClick={() => !hasAnswered && handleAnswer('right')}
+                    className={`flex-1 font-bold text-8xl py-20 transition-all pointer-events-auto flex items-center justify-center ${
                       hasAnswered ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-white hover:bg-opacity-10'
                     }`}
                   >
                     {formatSyllable(currentQuestion.rightSyllable)}
-                  </button>
+                  </div>
                 </div>
               )}
 
