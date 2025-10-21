@@ -379,10 +379,22 @@
             return () => window.removeEventListener('keydown', handleKeyDown);
           }, [gameState, hasAnswered, currentQuestion]);
 
-          // Format syllable with case
+          // Format syllable with case and coloring
           const formatSyllable = (syllable) => {
             if (!syllable) return '';
-            return isUpperCase ? syllable.toUpperCase() : syllable;
+            const chars = syllable.split('');
+            const formatted = chars.map(char => isUpperCase ? char.toUpperCase() : char);
+
+            return (
+              <>
+                <span className={syllableOrder === 'cv' ? 'text-blue-400' : 'text-red-400'}>
+                  {formatted[0]}
+                </span>
+                <span className={syllableOrder === 'cv' ? 'text-red-400' : 'text-blue-400'}>
+                  {formatted[1]}
+                </span>
+              </>
+            );
           };
 
           if (gameState === 'gameover') {
@@ -462,8 +474,8 @@
                   <button
                     onClick={() => handleAnswer('left')}
                     disabled={hasAnswered}
-                    className={`flex-1 bg-blue-500 bg-opacity-80 hover:bg-opacity-100 text-white font-bold text-8xl py-20 transition-all ${
-                      hasAnswered ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                    className={`flex-1 font-bold text-8xl py-20 transition-all ${
+                      hasAnswered ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-white hover:bg-opacity-10'
                     }`}
                   >
                     {formatSyllable(currentQuestion.leftSyllable)}
@@ -471,8 +483,8 @@
                   <button
                     onClick={() => handleAnswer('right')}
                     disabled={hasAnswered}
-                    className={`flex-1 bg-green-500 bg-opacity-80 hover:bg-opacity-100 text-white font-bold text-8xl py-20 transition-all ${
-                      hasAnswered ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                    className={`flex-1 font-bold text-8xl py-20 transition-all ${
+                      hasAnswered ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:bg-white hover:bg-opacity-10'
                     }`}
                   >
                     {formatSyllable(currentQuestion.rightSyllable)}
