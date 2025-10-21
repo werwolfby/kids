@@ -404,12 +404,15 @@
           // Handle keyboard controls
           useEffect(() => {
             const handleKeyDown = (e) => {
-              if (gameState !== 'playing' || hasAnswered) return;
+              if (gameState !== 'playing') return;
 
-              if (e.key === 'ArrowLeft') {
+              if (e.key === 'ArrowLeft' && !hasAnswered) {
                 handleAnswer('left');
-              } else if (e.key === 'ArrowRight') {
+              } else if (e.key === 'ArrowRight' && !hasAnswered) {
                 handleAnswer('right');
+              } else if (e.key === 'ArrowUp' && currentQuestion) {
+                // Repeat syllable pronunciation
+                speakSyllable(currentQuestion.correctSyllable);
               } else if (e.key === 'Escape') {
                 onBack();
               }
@@ -527,7 +530,7 @@
               <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
                 <div className="bg-black bg-opacity-60 text-white rounded-2xl px-8 py-4">
                   <p className="text-2xl font-bold">
-                    Нажми ← или → (или выбери внизу)
+                    ← или → для ответа | ↑ повторить
                   </p>
                 </div>
               </div>
