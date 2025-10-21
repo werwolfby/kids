@@ -1,4 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom'
+import SyllablesApp from './apps/syllables/SyllablesApp'
 
 const AppsIndex = () => {
   const apps = [
@@ -103,7 +104,7 @@ function App() {
     <Router>
       <Routes>
         <Route path="/" element={<AppsIndex />} />
-        <Route path="/syllables" element={<div className="min-h-screen flex items-center justify-center text-4xl">Syllables App - Coming Soon!</div>} />
+        <Route path="/syllables" element={<SyllablesApp />} />
       </Routes>
     </Router>
   )
