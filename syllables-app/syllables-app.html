@@ -46,6 +46,7 @@
           const roadSegmentsRef = useRef([]);
           const obstaclesRef = useRef([]);
           const animationFrameRef = useRef(null);
+          const sceneryObjectsRef = useRef([]);
 
           const [gameState, setGameState] = useState('playing'); // 'playing' or 'gameover'
           const [speed, setSpeed] = useState(100);
@@ -133,13 +134,35 @@
             rendererRef.current = renderer;
 
             // Lights
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
             scene.add(ambientLight);
 
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-            directionalLight.position.set(5, 10, 5);
+            const directionalLight = new THREE.DirectionalLight(0xFFF8DC, 1.0);
+            directionalLight.position.set(10, 15, 10);
             directionalLight.castShadow = true;
+            directionalLight.shadow.camera.left = -30;
+            directionalLight.shadow.camera.right = 30;
+            directionalLight.shadow.camera.top = 30;
+            directionalLight.shadow.camera.bottom = -30;
+            directionalLight.shadow.mapSize.width = 2048;
+            directionalLight.shadow.mapSize.height = 2048;
             scene.add(directionalLight);
+
+            // Add a warm fill light
+            const fillLight = new THREE.DirectionalLight(0xFFE4B5, 0.3);
+            fillLight.position.set(-5, 5, -5);
+            scene.add(fillLight);
+
+            // Add sun/moon sphere in the sky
+            const sunGeometry = new THREE.SphereGeometry(3, 16, 16);
+            const sunMaterial = new THREE.MeshBasicMaterial({
+              color: 0xFFDD88,
+              emissive: 0xFFDD88,
+              emissiveIntensity: 1
+            });
+            const sun = new THREE.Mesh(sunGeometry, sunMaterial);
+            sun.position.set(30, 25, -40);
+            scene.add(sun);
 
             // Create road segments with significant overlap
             const roadGeometry = new THREE.PlaneGeometry(8, 25);
@@ -167,70 +190,547 @@
               roadSegmentsRef.current.push(marking);
             }
 
-            // Create grass on sides
+            // Create grass on sides (repeating segments)
             const grassGeometry = new THREE.PlaneGeometry(50, 100);
-            const grassMaterial = new THREE.MeshStandardMaterial({ color: 0x228B22 });
+            const grassMaterial = new THREE.MeshStandardMaterial({ color: 0x2d5016 });
 
-            const grassLeft = new THREE.Mesh(grassGeometry, grassMaterial);
-            grassLeft.rotation.x = -Math.PI / 2;
-            grassLeft.position.x = -29;
-            scene.add(grassLeft);
+            // Create multiple grass segments for seamless looping
+            for (let i = 0; i < 4; i++) {
+              const grassLeft = new THREE.Mesh(grassGeometry, grassMaterial);
+              grassLeft.rotation.x = -Math.PI / 2;
+              grassLeft.position.x = -29;
+              grassLeft.position.z = -i * 100;
+              grassLeft.receiveShadow = true;
+              scene.add(grassLeft);
+              roadSegmentsRef.current.push(grassLeft);
 
-            const grassRight = new THREE.Mesh(grassGeometry, grassMaterial);
-            grassRight.rotation.x = -Math.PI / 2;
-            grassRight.position.x = 29;
-            scene.add(grassRight);
+              const grassRight = new THREE.Mesh(grassGeometry, grassMaterial);
+              grassRight.rotation.x = -Math.PI / 2;
+              grassRight.position.x = 29;
+              grassRight.position.z = -i * 100;
+              grassRight.receiveShadow = true;
+              scene.add(grassRight);
+              roadSegmentsRef.current.push(grassRight);
+            }
 
-            // Create player car (low-poly style)
+            // Add trees along the road
+            const createTree = (x, z) => {
+              const treeGroup = new THREE.Group();
+
+              // Tree trunk
+              const trunkGeometry = new THREE.CylinderGeometry(0.3, 0.4, 2, 6);
+              const trunkMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+              const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
+              trunk.position.y = 1;
+              trunk.castShadow = true;
+              treeGroup.add(trunk);
+
+              // Tree foliage (3 spheres)
+              const foliageGeometry = new THREE.SphereGeometry(1.2, 6, 6);
+              const foliageMaterial = new THREE.MeshStandardMaterial({ color: 0x228B22 });
+
+              const foliage1 = new THREE.Mesh(foliageGeometry, foliageMaterial);
+              foliage1.position.y = 2.5;
+              foliage1.castShadow = true;
+              treeGroup.add(foliage1);
+
+              const foliage2 = new THREE.Mesh(foliageGeometry, foliageMaterial);
+              foliage2.position.y = 3.5;
+              foliage2.scale.set(0.8, 0.8, 0.8);
+              foliage2.castShadow = true;
+              treeGroup.add(foliage2);
+
+              const foliage3 = new THREE.Mesh(foliageGeometry, foliageMaterial);
+              foliage3.position.y = 4.3;
+              foliage3.scale.set(0.5, 0.5, 0.5);
+              foliage3.castShadow = true;
+              treeGroup.add(foliage3);
+
+              treeGroup.position.set(x, 0, z);
+              return treeGroup;
+            };
+
+            // Place trees along the road
+            for (let i = 0; i < 20; i++) {
+              const z = -i * 8;
+
+              // Trees on left side
+              const treeLeft = createTree(-8 - Math.random() * 3, z + Math.random() * 4);
+              scene.add(treeLeft);
+              sceneryObjectsRef.current.push({ obj: treeLeft, resetZ: -160 });
+
+              // Trees on right side
+              const treeRight = createTree(8 + Math.random() * 3, z + Math.random() * 4);
+              scene.add(treeRight);
+              sceneryObjectsRef.current.push({ obj: treeRight, resetZ: -160 });
+            }
+
+            // Add clouds in the sky
+            const createCloud = (x, y, z) => {
+              const cloudGroup = new THREE.Group();
+              const cloudMaterial = new THREE.MeshStandardMaterial({
+                color: 0xFFFFFF,
+                transparent: true,
+                opacity: 0.8
+              });
+
+              // Cloud made of spheres
+              for (let i = 0; i < 5; i++) {
+                const size = 1 + Math.random() * 1.5;
+                const sphere = new THREE.Mesh(
+                  new THREE.SphereGeometry(size, 6, 6),
+                  cloudMaterial
+                );
+                sphere.position.x = (Math.random() - 0.5) * 4;
+                sphere.position.y = (Math.random() - 0.5) * 1;
+                sphere.position.z = (Math.random() - 0.5) * 2;
+                cloudGroup.add(sphere);
+              }
+
+              cloudGroup.position.set(x, y, z);
+              return cloudGroup;
+            };
+
+            // Add clouds
+            for (let i = 0; i < 10; i++) {
+              const cloud = createCloud(
+                (Math.random() - 0.5) * 80,
+                15 + Math.random() * 10,
+                -Math.random() * 100
+              );
+              scene.add(cloud);
+            }
+
+            // Add mountains in the far background
+            const createMountain = (x, z) => {
+              const mountainGeometry = new THREE.ConeGeometry(
+                3 + Math.random() * 4,
+                8 + Math.random() * 8,
+                4
+              );
+              const mountainMaterial = new THREE.MeshStandardMaterial({
+                color: 0x666666,
+                flatShading: true
+              });
+              const mountain = new THREE.Mesh(mountainGeometry, mountainMaterial);
+              mountain.position.set(x, 0, z);
+              mountain.castShadow = false;
+              mountain.receiveShadow = false;
+
+              // Add snow cap
+              const snowGeometry = new THREE.ConeGeometry(
+                (3 + Math.random() * 4) * 0.6,
+                (8 + Math.random() * 8) * 0.4,
+                4
+              );
+              const snowMaterial = new THREE.MeshStandardMaterial({
+                color: 0xFFFFFF,
+                flatShading: true
+              });
+              const snow = new THREE.Mesh(snowGeometry, snowMaterial);
+              snow.position.y = mountain.geometry.parameters.height * 0.6;
+              mountain.add(snow);
+
+              return mountain;
+            };
+
+            // Add mountains far in the background
+            for (let i = 0; i < 12; i++) {
+              const mountain = createMountain(
+                (Math.random() - 0.5) * 100,
+                -60 - Math.random() * 40
+              );
+              scene.add(mountain);
+            }
+
+            // Add simple buildings in the distance
+            const createBuilding = (x, z) => {
+              const height = 5 + Math.random() * 10;
+              const width = 2 + Math.random() * 2;
+              const depth = 2 + Math.random() * 2;
+
+              const buildingGeometry = new THREE.BoxGeometry(width, height, depth);
+              const buildingMaterial = new THREE.MeshStandardMaterial({
+                color: new THREE.Color().setHSL(Math.random(), 0.3, 0.5)
+              });
+              const building = new THREE.Mesh(buildingGeometry, buildingMaterial);
+              building.position.set(x, height / 2, z);
+              building.castShadow = true;
+              building.receiveShadow = true;
+
+              return building;
+            };
+
+            // Add buildings on both sides (far from road)
+            for (let i = 0; i < 15; i++) {
+              const z = -Math.random() * 100;
+
+              // Buildings on left side
+              const buildingLeft = createBuilding(-15 - Math.random() * 10, z);
+              scene.add(buildingLeft);
+              sceneryObjectsRef.current.push({ obj: buildingLeft, resetZ: -100 });
+
+              // Buildings on right side
+              const buildingRight = createBuilding(15 + Math.random() * 10, z);
+              scene.add(buildingRight);
+              sceneryObjectsRef.current.push({ obj: buildingRight, resetZ: -100 });
+            }
+
+            // Add street lamps along the road
+            const createStreetLamp = (x, z) => {
+              const lampGroup = new THREE.Group();
+
+              // Pole
+              const poleGeometry = new THREE.CylinderGeometry(0.1, 0.1, 4, 6);
+              const poleMaterial = new THREE.MeshStandardMaterial({ color: 0x444444 });
+              const pole = new THREE.Mesh(poleGeometry, poleMaterial);
+              pole.position.y = 2;
+              pole.castShadow = true;
+              lampGroup.add(pole);
+
+              // Lamp head
+              const lampHeadGeometry = new THREE.BoxGeometry(0.4, 0.3, 0.4);
+              const lampHeadMaterial = new THREE.MeshStandardMaterial({
+                color: 0xFFFF88,
+                emissive: 0xFFFF00,
+                emissiveIntensity: 0.5
+              });
+              const lampHead = new THREE.Mesh(lampHeadGeometry, lampHeadMaterial);
+              lampHead.position.y = 4.2;
+              lampGroup.add(lampHead);
+
+              lampGroup.position.set(x, 0, z);
+              return lampGroup;
+            };
+
+            // Add street lamps
+            for (let i = 0; i < 25; i++) {
+              const z = -i * 6;
+
+              // Lamps on left side of road
+              const lampLeft = createStreetLamp(-5, z);
+              scene.add(lampLeft);
+              sceneryObjectsRef.current.push({ obj: lampLeft, resetZ: -150 });
+
+              // Lamps on right side of road
+              const lampRight = createStreetLamp(5, z);
+              scene.add(lampRight);
+              sceneryObjectsRef.current.push({ obj: lampRight, resetZ: -150 });
+            }
+
+            // Add rocks/bushes as decoration
+            const createRock = (x, z) => {
+              const rockGeometry = new THREE.DodecahedronGeometry(0.3 + Math.random() * 0.4, 0);
+              const rockMaterial = new THREE.MeshStandardMaterial({ color: 0x808080 });
+              const rock = new THREE.Mesh(rockGeometry, rockMaterial);
+              rock.position.set(x, 0.2, z);
+              rock.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+              rock.castShadow = true;
+              return rock;
+            };
+
+            // Add random rocks
+            for (let i = 0; i < 30; i++) {
+              const z = -Math.random() * 100;
+              const side = Math.random() > 0.5 ? 1 : -1;
+              const x = side * (6 + Math.random() * 4);
+              const rock = createRock(x, z);
+              scene.add(rock);
+              sceneryObjectsRef.current.push({ obj: rock, resetZ: -100 });
+            }
+
+            // Add some flowers/bushes on the grass
+            const createFlower = (x, z) => {
+              const flowerGroup = new THREE.Group();
+
+              // Stem
+              const stemGeometry = new THREE.CylinderGeometry(0.02, 0.02, 0.3, 4);
+              const stemMaterial = new THREE.MeshStandardMaterial({ color: 0x228B22 });
+              const stem = new THREE.Mesh(stemGeometry, stemMaterial);
+              stem.position.y = 0.15;
+              flowerGroup.add(stem);
+
+              // Flower head
+              const petalColors = [0xFF69B4, 0xFFFF00, 0xFF6347, 0xFF00FF, 0x00BFFF];
+              const color = petalColors[Math.floor(Math.random() * petalColors.length)];
+              const headGeometry = new THREE.SphereGeometry(0.1, 6, 6);
+              const headMaterial = new THREE.MeshStandardMaterial({ color: color });
+              const head = new THREE.Mesh(headGeometry, headMaterial);
+              head.position.y = 0.35;
+              flowerGroup.add(head);
+
+              flowerGroup.position.set(x, 0, z);
+              return flowerGroup;
+            };
+
+            // Add flowers
+            for (let i = 0; i < 40; i++) {
+              const z = -Math.random() * 100;
+              const side = Math.random() > 0.5 ? 1 : -1;
+              const x = side * (7 + Math.random() * 3);
+              const flower = createFlower(x, z);
+              scene.add(flower);
+              sceneryObjectsRef.current.push({ obj: flower, resetZ: -100 });
+            }
+
+            // Add animated birds
+            const createBird = (x, y, z) => {
+              const birdGroup = new THREE.Group();
+
+              // Simple bird shape made of triangles
+              const wingMaterial = new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.DoubleSide });
+
+              // Left wing
+              const leftWingGeometry = new THREE.BufferGeometry();
+              const leftWingVertices = new Float32Array([
+                0, 0, 0,
+                -0.3, 0, 0.2,
+                0, 0, 0.1
+              ]);
+              leftWingGeometry.setAttribute('position', new THREE.BufferAttribute(leftWingVertices, 3));
+              const leftWing = new THREE.Mesh(leftWingGeometry, wingMaterial);
+              birdGroup.add(leftWing);
+
+              // Right wing
+              const rightWingGeometry = new THREE.BufferGeometry();
+              const rightWingVertices = new Float32Array([
+                0, 0, 0,
+                0.3, 0, 0.2,
+                0, 0, 0.1
+              ]);
+              rightWingGeometry.setAttribute('position', new THREE.BufferAttribute(rightWingVertices, 3));
+              const rightWing = new THREE.Mesh(rightWingGeometry, wingMaterial);
+              birdGroup.add(rightWing);
+
+              birdGroup.position.set(x, y, z);
+              birdGroup.userData.wingAngle = 0;
+              birdGroup.userData.leftWing = leftWing;
+              birdGroup.userData.rightWing = rightWing;
+              birdGroup.userData.speed = 0.02 + Math.random() * 0.02;
+              birdGroup.userData.orbitRadius = 10 + Math.random() * 20;
+              birdGroup.userData.orbitAngle = Math.random() * Math.PI * 2;
+              birdGroup.userData.orbitCenterX = x;
+              birdGroup.userData.orbitCenterZ = z;
+
+              return birdGroup;
+            };
+
+            // Add several birds
+            const birds = [];
+            for (let i = 0; i < 8; i++) {
+              const bird = createBird(
+                (Math.random() - 0.5) * 40,
+                8 + Math.random() * 8,
+                -20 - Math.random() * 60
+              );
+              scene.add(bird);
+              birds.push(bird);
+
+              // Store initial Z for movement with scenery
+              bird.userData.initialZ = bird.position.z;
+            }
+
+            // Create player car (enhanced low-poly sports car style)
             const carGroup = new THREE.Group();
 
-            // Car body
-            const bodyGeometry = new THREE.BoxGeometry(1.5, 0.8, 2.5);
-            const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0xFF0000 });
+            // Car body (main chassis) - wider and sleeker
+            const bodyGeometry = new THREE.BoxGeometry(1.6, 0.6, 2.8);
+            const bodyMaterial = new THREE.MeshStandardMaterial({
+              color: 0xFF0000,
+              metalness: 0.6,
+              roughness: 0.4
+            });
             const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
             body.position.y = 0.5;
             body.castShadow = true;
             carGroup.add(body);
 
-            // Car cabin
-            const cabinGeometry = new THREE.BoxGeometry(1.3, 0.6, 1.5);
-            const cabinMaterial = new THREE.MeshStandardMaterial({ color: 0x8B0000 });
+            // Lower body/chassis
+            const lowerBodyGeometry = new THREE.BoxGeometry(1.7, 0.3, 2.6);
+            const lowerBody = new THREE.Mesh(lowerBodyGeometry, bodyMaterial);
+            lowerBody.position.y = 0.2;
+            lowerBody.castShadow = true;
+            carGroup.add(lowerBody);
+
+            // Car cabin (more aerodynamic)
+            const cabinGeometry = new THREE.BoxGeometry(1.4, 0.7, 1.6);
+            const cabinMaterial = new THREE.MeshStandardMaterial({
+              color: 0xCC0000,
+              metalness: 0.5,
+              roughness: 0.5
+            });
             const cabin = new THREE.Mesh(cabinGeometry, cabinMaterial);
-            cabin.position.y = 1.1;
-            cabin.position.z = -0.2;
+            cabin.position.y = 1.05;
+            cabin.position.z = -0.3;
             cabin.castShadow = true;
             carGroup.add(cabin);
 
+            // Roof
+            const roofGeometry = new THREE.BoxGeometry(1.3, 0.2, 1.2);
+            const roof = new THREE.Mesh(roofGeometry, cabinMaterial);
+            roof.position.y = 1.5;
+            roof.position.z = -0.3;
+            roof.castShadow = true;
+            carGroup.add(roof);
+
             // Windows
             const windowMaterial = new THREE.MeshStandardMaterial({
-              color: 0x87CEEB,
+              color: 0x333333,
               transparent: true,
-              opacity: 0.5
+              opacity: 0.3,
+              metalness: 0.9,
+              roughness: 0.1
             });
-            const frontWindowGeometry = new THREE.PlaneGeometry(1.2, 0.5);
+
+            // Front windshield
+            const frontWindowGeometry = new THREE.PlaneGeometry(1.3, 0.6);
             const frontWindow = new THREE.Mesh(frontWindowGeometry, windowMaterial);
-            frontWindow.position.set(0, 1.1, 0.55);
-            frontWindow.rotation.y = 0;
+            frontWindow.position.set(0, 1.1, 0.5);
+            frontWindow.rotation.x = -0.2;
             carGroup.add(frontWindow);
 
-            // Wheels
-            const wheelGeometry = new THREE.CylinderGeometry(0.3, 0.3, 0.3, 8);
-            const wheelMaterial = new THREE.MeshStandardMaterial({ color: 0x222222 });
+            // Rear window
+            const rearWindow = new THREE.Mesh(frontWindowGeometry, windowMaterial);
+            rearWindow.position.set(0, 1.1, -1.1);
+            rearWindow.rotation.x = 0.2;
+            rearWindow.rotation.y = Math.PI;
+            carGroup.add(rearWindow);
 
+            // Side windows
+            const sideWindowGeometry = new THREE.PlaneGeometry(1.4, 0.5);
+            const leftWindow = new THREE.Mesh(sideWindowGeometry, windowMaterial);
+            leftWindow.position.set(-0.7, 1.1, -0.3);
+            leftWindow.rotation.y = Math.PI / 2;
+            carGroup.add(leftWindow);
+
+            const rightWindow = new THREE.Mesh(sideWindowGeometry, windowMaterial);
+            rightWindow.position.set(0.7, 1.1, -0.3);
+            rightWindow.rotation.y = -Math.PI / 2;
+            carGroup.add(rightWindow);
+
+            // Front bumper
+            const bumperGeometry = new THREE.BoxGeometry(1.7, 0.2, 0.3);
+            const bumperMaterial = new THREE.MeshStandardMaterial({ color: 0x333333 });
+            const frontBumper = new THREE.Mesh(bumperGeometry, bumperMaterial);
+            frontBumper.position.set(0, 0.25, 1.55);
+            frontBumper.castShadow = true;
+            carGroup.add(frontBumper);
+
+            // Rear bumper
+            const rearBumper = new THREE.Mesh(bumperGeometry, bumperMaterial);
+            rearBumper.position.set(0, 0.25, -1.55);
+            rearBumper.castShadow = true;
+            carGroup.add(rearBumper);
+
+            // Headlights
+            const headlightGeometry = new THREE.SphereGeometry(0.15, 8, 8);
+            const headlightMaterial = new THREE.MeshStandardMaterial({
+              color: 0xFFFFFF,
+              emissive: 0xFFFFFF,
+              emissiveIntensity: 0.8
+            });
+
+            const leftHeadlight = new THREE.Mesh(headlightGeometry, headlightMaterial);
+            leftHeadlight.position.set(-0.5, 0.4, 1.45);
+            carGroup.add(leftHeadlight);
+
+            const rightHeadlight = new THREE.Mesh(headlightGeometry, headlightMaterial);
+            rightHeadlight.position.set(0.5, 0.4, 1.45);
+            carGroup.add(rightHeadlight);
+
+            // Taillights
+            const taillightMaterial = new THREE.MeshStandardMaterial({
+              color: 0xFF0000,
+              emissive: 0xFF0000,
+              emissiveIntensity: 0.5
+            });
+
+            const leftTaillight = new THREE.Mesh(headlightGeometry, taillightMaterial);
+            leftTaillight.position.set(-0.5, 0.5, -1.45);
+            carGroup.add(leftTaillight);
+
+            const rightTaillight = new THREE.Mesh(headlightGeometry, taillightMaterial);
+            rightTaillight.position.set(0.5, 0.5, -1.45);
+            carGroup.add(rightTaillight);
+
+            // Side mirrors
+            const mirrorGeometry = new THREE.BoxGeometry(0.1, 0.15, 0.25);
+            const mirrorMaterial = new THREE.MeshStandardMaterial({ color: 0x333333 });
+
+            const leftMirror = new THREE.Mesh(mirrorGeometry, mirrorMaterial);
+            leftMirror.position.set(-0.85, 1.0, 0.3);
+            carGroup.add(leftMirror);
+
+            const rightMirror = new THREE.Mesh(mirrorGeometry, mirrorMaterial);
+            rightMirror.position.set(0.85, 1.0, 0.3);
+            carGroup.add(rightMirror);
+
+            // Spoiler
+            const spoilerBaseGeometry = new THREE.BoxGeometry(0.2, 0.5, 0.1);
+            const spoilerBase = new THREE.Mesh(spoilerBaseGeometry, bodyMaterial);
+            spoilerBase.position.set(0, 1.1, -1.4);
+            carGroup.add(spoilerBase);
+
+            const spoilerWingGeometry = new THREE.BoxGeometry(1.5, 0.1, 0.4);
+            const spoilerWing = new THREE.Mesh(spoilerWingGeometry, bodyMaterial);
+            spoilerWing.position.set(0, 1.4, -1.4);
+            spoilerWing.castShadow = true;
+            carGroup.add(spoilerWing);
+
+            // Wheels with better design (tire + rim)
             const wheelPositions = [
-              [-0.8, 0.3, 0.8],
-              [0.8, 0.3, 0.8],
-              [-0.8, 0.3, -0.8],
-              [0.8, 0.3, -0.8]
+              [-0.8, 0.3, 0.9],
+              [0.8, 0.3, 0.9],
+              [-0.8, 0.3, -0.9],
+              [0.8, 0.3, -0.9]
             ];
 
             wheelPositions.forEach(pos => {
-              const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
-              wheel.rotation.z = Math.PI / 2;
-              wheel.position.set(...pos);
-              wheel.castShadow = true;
-              carGroup.add(wheel);
+              const wheelGroup = new THREE.Group();
+
+              // Tire
+              const tireGeometry = new THREE.CylinderGeometry(0.35, 0.35, 0.35, 12);
+              const tireMaterial = new THREE.MeshStandardMaterial({ color: 0x1a1a1a });
+              const tire = new THREE.Mesh(tireGeometry, tireMaterial);
+              tire.castShadow = true;
+              wheelGroup.add(tire);
+
+              // Rim (inner part)
+              const rimGeometry = new THREE.CylinderGeometry(0.25, 0.25, 0.37, 12);
+              const rimMaterial = new THREE.MeshStandardMaterial({
+                color: 0xC0C0C0,
+                metalness: 0.8,
+                roughness: 0.2
+              });
+              const rim = new THREE.Mesh(rimGeometry, rimMaterial);
+              wheelGroup.add(rim);
+
+              // Rim center cap
+              const capGeometry = new THREE.CylinderGeometry(0.12, 0.12, 0.38, 8);
+              const capMaterial = new THREE.MeshStandardMaterial({
+                color: 0xFF0000,
+                metalness: 0.6,
+                roughness: 0.3
+              });
+              const cap = new THREE.Mesh(capGeometry, capMaterial);
+              wheelGroup.add(cap);
+
+              wheelGroup.rotation.z = Math.PI / 2;
+              wheelGroup.position.set(...pos);
+              carGroup.add(wheelGroup);
             });
+
+            // Hood details (air vents)
+            const ventGeometry = new THREE.BoxGeometry(0.3, 0.05, 0.15);
+            const ventMaterial = new THREE.MeshStandardMaterial({ color: 0x222222 });
+
+            const leftVent = new THREE.Mesh(ventGeometry, ventMaterial);
+            leftVent.position.set(-0.3, 0.85, 0.8);
+            carGroup.add(leftVent);
+
+            const rightVent = new THREE.Mesh(ventGeometry, ventMaterial);
+            rightVent.position.set(0.3, 0.85, 0.8);
+            carGroup.add(rightVent);
 
             carGroup.position.set(0, 0, 2);
             scene.add(carGroup);
@@ -246,6 +746,29 @@
             const animate = () => {
               animationFrameRef.current = requestAnimationFrame(animate);
 
+              // Animate birds (always, even when game is paused)
+              birds.forEach(bird => {
+                // Wing flapping
+                bird.userData.wingAngle += 0.15;
+                const flapAngle = Math.sin(bird.userData.wingAngle) * 0.5;
+
+                bird.userData.leftWing.rotation.y = flapAngle;
+                bird.userData.rightWing.rotation.y = -flapAngle;
+
+                // Circular flight path (relative to orbit center)
+                bird.userData.orbitAngle += bird.userData.speed;
+                const relativeX = Math.cos(bird.userData.orbitAngle) * bird.userData.orbitRadius;
+                const relativeZ = Math.sin(bird.userData.orbitAngle) * bird.userData.orbitRadius;
+
+                bird.position.x = bird.userData.orbitCenterX + relativeX;
+
+                // Update Z based on orbit center which moves with scenery
+                bird.position.z = bird.userData.orbitCenterZ + relativeZ;
+
+                // Face the direction of movement
+                bird.rotation.y = bird.userData.orbitAngle + Math.PI / 2;
+              });
+
               if (gameState === 'playing' && speed > 0) {
                 // Move road
                 const moveSpeed = speed / 1000;
@@ -253,8 +776,33 @@
 
                 roadSegmentsRef.current.forEach(segment => {
                   segment.position.z += moveSpeed;
-                  if (segment.position.z > 20) {
-                    segment.position.z -= 192; // 8 segments * 24 spacing
+                  // Road markings and road segments loop at 192
+                  if (segment.userData.isRoad || !segment.geometry.parameters) {
+                    if (segment.position.z > 20) {
+                      segment.position.z -= 192; // 8 segments * 24 spacing
+                    }
+                  }
+                  // Grass segments loop at 400 (4 segments * 100)
+                  else if (segment.position.z > 20) {
+                    segment.position.z -= 400;
+                  }
+                });
+
+                // Move all scenery objects
+                sceneryObjectsRef.current.forEach(item => {
+                  item.obj.position.z += moveSpeed;
+                  // When object passes behind camera, reset it far ahead
+                  if (item.obj.position.z > 20) {
+                    item.obj.position.z = item.resetZ;
+                  }
+                });
+
+                // Move bird orbit centers with the road
+                birds.forEach(bird => {
+                  bird.userData.orbitCenterZ += moveSpeed;
+                  // Reset bird position when it passes behind camera
+                  if (bird.userData.orbitCenterZ > 20) {
+                    bird.userData.orbitCenterZ = -80;
                   }
                 });
 
@@ -333,9 +881,21 @@
 
                       // Car bounce and flash
                       if (carRef.current) {
-                        const carBody = carRef.current.children[0];
-                        const originalColor = carBody.material.color.clone();
-                        carBody.material.color.setHex(0xFFFF00); // Bright yellow flash
+                        // Flash all body parts to yellow
+                        const bodyParts = [];
+                        const originalColors = [];
+
+                        carRef.current.children.forEach((child, index) => {
+                          if (child.material && child.material.color) {
+                            bodyParts.push(child);
+                            originalColors.push(child.material.color.clone());
+                            // Flash bright yellow (except wheels and dark parts)
+                            if (child.material.color.getHex() !== 0x1a1a1a &&
+                                child.material.color.getHex() !== 0x333333) {
+                              child.material.color.setHex(0xFFFF00);
+                            }
+                          }
+                        });
 
                         const carStartY = carRef.current.position.y;
                         const bounceStartTime = Date.now();
@@ -356,7 +916,9 @@
                         bounceCar();
 
                         setTimeout(() => {
-                          carBody.material.color = originalColor;
+                          bodyParts.forEach((part, index) => {
+                            part.material.color.copy(originalColors[index]);
+                          });
                         }, 200);
                       }
                     } else {
