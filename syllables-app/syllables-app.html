@@ -8,6 +8,7 @@
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         body {
             margin: 0;
@@ -33,6 +34,506 @@
                 <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
             </svg>
         );
+
+        // 3D Game Component
+        const Game3D = ({ onBack, consonants, vowels, isValidSyllable, syllableOrder, isUpperCase }) => {
+          const { useState, useEffect, useRef } = React;
+          const mountRef = useRef(null);
+          const sceneRef = useRef(null);
+          const cameraRef = useRef(null);
+          const rendererRef = useRef(null);
+          const carRef = useRef(null);
+          const roadSegmentsRef = useRef([]);
+          const obstaclesRef = useRef([]);
+          const animationFrameRef = useRef(null);
+
+          const [gameState, setGameState] = useState('playing'); // 'playing' or 'gameover'
+          const [speed, setSpeed] = useState(100);
+          const [score, setScore] = useState(0);
+          const [correctAnswers, setCorrectAnswers] = useState(0);
+          const [totalQuestions, setTotalQuestions] = useState(0);
+          const [currentQuestion, setCurrentQuestion] = useState(null);
+          const [hasAnswered, setHasAnswered] = useState(false);
+          const [selectedSide, setSelectedSide] = useState(null);
+          const currentObstacleRef = useRef(null);
+
+          // Generate a random syllable
+          const generateSyllable = () => {
+            let consonant, vowel;
+            do {
+              consonant = consonants[Math.floor(Math.random() * consonants.length)];
+              vowel = vowels[Math.floor(Math.random() * vowels.length)];
+            } while (syllableOrder === 'cv' && !isValidSyllable(consonant, vowel));
+            return syllableOrder === 'cv' ? consonant + vowel : vowel + consonant;
+          };
+
+          // Generate wrong syllable (different from correct one)
+          const generateWrongSyllable = (correctSyllable) => {
+            let wrongSyllable;
+            do {
+              wrongSyllable = generateSyllable();
+            } while (wrongSyllable === correctSyllable);
+            return wrongSyllable;
+          };
+
+          // Create new question
+          const createNewQuestion = () => {
+            const correctSyllable = generateSyllable();
+            const wrongSyllable = generateWrongSyllable(correctSyllable);
+            const isCorrectOnLeft = Math.random() > 0.5;
+
+            return {
+              correctSyllable,
+              wrongSyllable,
+              leftSyllable: isCorrectOnLeft ? correctSyllable : wrongSyllable,
+              rightSyllable: isCorrectOnLeft ? wrongSyllable : correctSyllable,
+              correctSide: isCorrectOnLeft ? 'left' : 'right'
+            };
+          };
+
+          // Speak syllable
+          const speakSyllable = (syllable) => {
+            if ('speechSynthesis' in window) {
+              const utterance = new SpeechSynthesisUtterance(syllable);
+              utterance.lang = 'ru-RU';
+              utterance.rate = 0.7;
+              utterance.pitch = 1.2;
+              window.speechSynthesis.cancel();
+              window.speechSynthesis.speak(utterance);
+            }
+          };
+
+          // Initialize Three.js scene
+          useEffect(() => {
+            if (!mountRef.current) return;
+
+            // Scene setup
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87CEEB); // Sky blue
+            scene.fog = new THREE.Fog(0x87CEEB, 10, 100);
+            sceneRef.current = scene;
+
+            // Camera setup
+            const camera = new THREE.PerspectiveCamera(
+              75,
+              window.innerWidth / window.innerHeight,
+              0.1,
+              1000
+            );
+            camera.position.set(0, 3, 5);
+            camera.lookAt(0, 0, -10);
+            cameraRef.current = camera;
+
+            // Renderer setup
+            const renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            mountRef.current.appendChild(renderer.domElement);
+            rendererRef.current = renderer;
+
+            // Lights
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(5, 10, 5);
+            directionalLight.castShadow = true;
+            scene.add(directionalLight);
+
+            // Create road segments with significant overlap
+            const roadGeometry = new THREE.PlaneGeometry(8, 25);
+            const roadMaterial = new THREE.MeshStandardMaterial({ color: 0x333333 });
+
+            for (let i = 0; i < 8; i++) {
+              const roadSegment = new THREE.Mesh(roadGeometry, roadMaterial);
+              roadSegment.rotation.x = -Math.PI / 2;
+              roadSegment.position.z = -i * 24; // 25 unit segments with 1 unit overlap
+              roadSegment.receiveShadow = true;
+              roadSegment.userData.isRoad = true;
+              scene.add(roadSegment);
+              roadSegmentsRef.current.push(roadSegment);
+            }
+
+            // Add road markings separately (dashed line in center)
+            const markingGeometry = new THREE.PlaneGeometry(0.3, 2);
+            const markingMaterial = new THREE.MeshStandardMaterial({ color: 0xFFFFFF });
+
+            for (let i = 0; i < 60; i++) {
+              const marking = new THREE.Mesh(markingGeometry, markingMaterial);
+              marking.rotation.x = -Math.PI / 2;
+              marking.position.set(0, 0.01, -i * 3);
+              scene.add(marking);
+              roadSegmentsRef.current.push(marking);
+            }
+
+            // Create grass on sides
+            const grassGeometry = new THREE.PlaneGeometry(50, 100);
+            const grassMaterial = new THREE.MeshStandardMaterial({ color: 0x228B22 });
+
+            const grassLeft = new THREE.Mesh(grassGeometry, grassMaterial);
+            grassLeft.rotation.x = -Math.PI / 2;
+            grassLeft.position.x = -29;
+            scene.add(grassLeft);
+
+            const grassRight = new THREE.Mesh(grassGeometry, grassMaterial);
+            grassRight.rotation.x = -Math.PI / 2;
+            grassRight.position.x = 29;
+            scene.add(grassRight);
+
+            // Create player car (low-poly style)
+            const carGroup = new THREE.Group();
+
+            // Car body
+            const bodyGeometry = new THREE.BoxGeometry(1.5, 0.8, 2.5);
+            const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0xFF0000 });
+            const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+            body.position.y = 0.5;
+            body.castShadow = true;
+            carGroup.add(body);
+
+            // Car cabin
+            const cabinGeometry = new THREE.BoxGeometry(1.3, 0.6, 1.5);
+            const cabinMaterial = new THREE.MeshStandardMaterial({ color: 0x8B0000 });
+            const cabin = new THREE.Mesh(cabinGeometry, cabinMaterial);
+            cabin.position.y = 1.1;
+            cabin.position.z = -0.2;
+            cabin.castShadow = true;
+            carGroup.add(cabin);
+
+            // Windows
+            const windowMaterial = new THREE.MeshStandardMaterial({
+              color: 0x87CEEB,
+              transparent: true,
+              opacity: 0.5
+            });
+            const frontWindowGeometry = new THREE.PlaneGeometry(1.2, 0.5);
+            const frontWindow = new THREE.Mesh(frontWindowGeometry, windowMaterial);
+            frontWindow.position.set(0, 1.1, 0.55);
+            frontWindow.rotation.y = 0;
+            carGroup.add(frontWindow);
+
+            // Wheels
+            const wheelGeometry = new THREE.CylinderGeometry(0.3, 0.3, 0.3, 8);
+            const wheelMaterial = new THREE.MeshStandardMaterial({ color: 0x222222 });
+
+            const wheelPositions = [
+              [-0.8, 0.3, 0.8],
+              [0.8, 0.3, 0.8],
+              [-0.8, 0.3, -0.8],
+              [0.8, 0.3, -0.8]
+            ];
+
+            wheelPositions.forEach(pos => {
+              const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
+              wheel.rotation.z = Math.PI / 2;
+              wheel.position.set(...pos);
+              wheel.castShadow = true;
+              carGroup.add(wheel);
+            });
+
+            carGroup.position.set(0, 0, 2);
+            scene.add(carGroup);
+            carRef.current = carGroup;
+
+            // Start with first question
+            const firstQuestion = createNewQuestion();
+            setCurrentQuestion(firstQuestion);
+            speakSyllable(firstQuestion.correctSyllable);
+
+            // Animation loop
+            let roadOffset = 0;
+            const animate = () => {
+              animationFrameRef.current = requestAnimationFrame(animate);
+
+              if (gameState === 'playing' && speed > 0) {
+                // Move road
+                const moveSpeed = speed / 1000;
+                roadOffset += moveSpeed;
+
+                roadSegmentsRef.current.forEach(segment => {
+                  segment.position.z += moveSpeed;
+                  if (segment.position.z > 20) {
+                    segment.position.z -= 192; // 8 segments * 24 spacing
+                  }
+                });
+
+                // Move obstacles
+                obstaclesRef.current.forEach(obstacle => {
+                  obstacle.position.z += moveSpeed;
+                });
+
+                // Check if current obstacle has passed the car
+                if (currentObstacleRef.current && currentObstacleRef.current.position.z > 3) {
+                  // Obstacle has passed, time for next question
+                  currentObstacleRef.current = null;
+
+                  // Move car back to center
+                  if (carRef.current) {
+                    const startX = carRef.current.position.x;
+                    const animationDuration = 500;
+                    const startTime = Date.now();
+
+                    const animateCar = () => {
+                      const elapsed = Date.now() - startTime;
+                      const progress = Math.min(elapsed / animationDuration, 1);
+                      if (carRef.current) {
+                        carRef.current.position.x = startX + (0 - startX) * progress;
+                      }
+
+                      if (progress < 1) {
+                        requestAnimationFrame(animateCar);
+                      } else {
+                        // Car is back in center, show next question
+                        const newQuestion = createNewQuestion();
+                        setCurrentQuestion(newQuestion);
+                        speakSyllable(newQuestion.correctSyllable);
+                        setHasAnswered(false);
+                        setSelectedSide(null);
+                      }
+                    };
+                    animateCar();
+                  }
+                }
+
+                // Remove obstacles that are behind camera
+                obstaclesRef.current = obstaclesRef.current.filter(obstacle => {
+                  if (obstacle.position.z > 5) {
+                    scene.remove(obstacle);
+                    return false;
+                  }
+                  return true;
+                });
+              }
+
+              renderer.render(scene, camera);
+            };
+            animate();
+
+            // Handle window resize
+            const handleResize = () => {
+              camera.aspect = window.innerWidth / window.innerHeight;
+              camera.updateProjectionMatrix();
+              renderer.setSize(window.innerWidth, window.innerHeight);
+            };
+            window.addEventListener('resize', handleResize);
+
+            // Cleanup
+            return () => {
+              window.removeEventListener('resize', handleResize);
+              if (animationFrameRef.current) {
+                cancelAnimationFrame(animationFrameRef.current);
+              }
+              if (mountRef.current && renderer.domElement) {
+                mountRef.current.removeChild(renderer.domElement);
+              }
+              renderer.dispose();
+            };
+          }, []);
+
+
+          // Create obstacles on road
+          const createObstacle = (side) => {
+            if (!sceneRef.current) return;
+
+            const coneGeometry = new THREE.ConeGeometry(0.4, 1.2, 8);
+            const coneMaterial = new THREE.MeshStandardMaterial({ color: 0xFF6600 });
+            const cone = new THREE.Mesh(coneGeometry, coneMaterial);
+
+            const xPosition = side === 'left' ? -2 : 2;
+            cone.position.set(xPosition, 0.6, -15);
+            cone.castShadow = true;
+
+            sceneRef.current.add(cone);
+            obstaclesRef.current.push(cone);
+            currentObstacleRef.current = cone; // Track this obstacle
+          };
+
+          // Handle answer
+          const handleAnswer = (side) => {
+            if (hasAnswered || !currentQuestion) return;
+
+            setHasAnswered(true);
+            const isCorrect = side === currentQuestion.correctSide;
+
+            setTotalQuestions(prev => prev + 1);
+            setSelectedSide(side);
+
+            // Move car to the chosen lane
+            if (carRef.current) {
+              const targetX = side === 'left' ? -2 : 2;
+              // Smooth animation to the target position
+              const startX = carRef.current.position.x;
+              const animationDuration = 500; // milliseconds
+              const startTime = Date.now();
+
+              const animateCar = () => {
+                const elapsed = Date.now() - startTime;
+                const progress = Math.min(elapsed / animationDuration, 1);
+                if (carRef.current) {
+                  carRef.current.position.x = startX + (targetX - startX) * progress;
+                }
+
+                if (progress < 1) {
+                  requestAnimationFrame(animateCar);
+                }
+              };
+              animateCar();
+            }
+
+            if (isCorrect) {
+              setCorrectAnswers(prev => prev + 1);
+              setScore(prev => prev + 10);
+              // Place obstacle on the OPPOSITE side so car avoids it
+              const obstacleSide = side === 'left' ? 'right' : 'left';
+              createObstacle(obstacleSide);
+            } else {
+              setSpeed(prev => Math.max(0, prev - 10));
+              // Place obstacle on the SAME side so car hits it
+              createObstacle(side);
+
+              if (speed - 10 <= 0) {
+                setGameState('gameover');
+                return;
+              }
+            }
+
+            // The next question will be shown automatically after the obstacle passes
+            // (handled in the animation loop)
+          };
+
+          // Handle keyboard controls
+          useEffect(() => {
+            const handleKeyDown = (e) => {
+              if (gameState !== 'playing' || hasAnswered) return;
+
+              if (e.key === 'ArrowLeft') {
+                handleAnswer('left');
+              } else if (e.key === 'ArrowRight') {
+                handleAnswer('right');
+              } else if (e.key === 'Escape') {
+                onBack();
+              }
+            };
+
+            window.addEventListener('keydown', handleKeyDown);
+            return () => window.removeEventListener('keydown', handleKeyDown);
+          }, [gameState, hasAnswered, currentQuestion]);
+
+          // Format syllable with case and coloring
+          const formatSyllable = (syllable) => {
+            if (!syllable) return '';
+            const chars = syllable.split('');
+            const formatted = chars.map(char => isUpperCase ? char.toUpperCase() : char);
+
+            return (
+              <>
+                <span className={syllableOrder === 'cv' ? 'text-blue-400' : 'text-red-400'}>
+                  {formatted[0]}
+                </span>
+                <span className={syllableOrder === 'cv' ? 'text-red-400' : 'text-blue-400'}>
+                  {formatted[1]}
+                </span>
+              </>
+            );
+          };
+
+          if (gameState === 'gameover') {
+            return (
+              <div className="fixed inset-0 bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center">
+                <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-2xl w-full mx-4">
+                  <h1 className="text-6xl font-bold text-center mb-8 text-red-600">
+                    GAME OVER!
+                  </h1>
+                  <div className="space-y-4 mb-8">
+                    <div className="bg-gradient-to-r from-blue-100 to-purple-100 rounded-2xl p-6">
+                      <p className="text-3xl font-bold text-gray-800">
+                        Очки: <span className="text-blue-600">{score}</span>
+                      </p>
+                    </div>
+                    <div className="bg-gradient-to-r from-green-100 to-blue-100 rounded-2xl p-6">
+                      <p className="text-3xl font-bold text-gray-800">
+                        Правильных ответов: <span className="text-green-600">{correctAnswers}</span> из {totalQuestions}
+                      </p>
+                    </div>
+                    <div className="bg-gradient-to-r from-yellow-100 to-orange-100 rounded-2xl p-6">
+                      <p className="text-3xl font-bold text-gray-800">
+                        Точность: <span className="text-orange-600">
+                          {totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : 0}%
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={onBack}
+                    className="w-full bg-gradient-to-r from-purple-500 to-blue-600 text-white rounded-2xl p-6 text-3xl font-bold hover:shadow-xl transition-all transform hover:scale-105"
+                  >
+                    Вернуться в меню
+                  </button>
+                </div>
+              </div>
+            );
+          }
+
+          return (
+            <div className="relative w-full h-screen overflow-hidden">
+              <div ref={mountRef} className="w-full h-full" />
+
+              {/* HUD Overlay */}
+              <div className="absolute top-4 left-4 right-4 flex justify-between items-start pointer-events-none">
+                <div className="space-y-2">
+                  <div className="bg-black bg-opacity-70 text-white rounded-xl px-6 py-3">
+                    <p className="text-2xl font-bold">Скорость: {speed}</p>
+                  </div>
+                  <div className="bg-black bg-opacity-70 text-white rounded-xl px-6 py-3">
+                    <p className="text-2xl font-bold">Очки: {score}</p>
+                  </div>
+                  <div className="bg-black bg-opacity-70 text-white rounded-xl px-6 py-3">
+                    <p className="text-xl font-bold">Правильных: {correctAnswers}/{totalQuestions}</p>
+                  </div>
+                </div>
+                <div className="pointer-events-auto">
+                  <button
+                    onClick={onBack}
+                    className="bg-red-500 hover:bg-red-600 text-white rounded-xl px-6 py-3 text-xl font-bold transition"
+                  >
+                    ☰ Меню
+                  </button>
+                </div>
+              </div>
+
+              {/* Syllable choices */}
+              {currentQuestion && (
+                <div className="absolute bottom-0 left-0 right-0 flex pointer-events-none">
+                  <div
+                    onClick={() => !hasAnswered && handleAnswer('left')}
+                    className={`flex-1 font-bold text-8xl py-20 transition-all pointer-events-auto flex items-center justify-center ${
+                      hasAnswered ? (selectedSide === 'left' ? 'opacity-100' : 'opacity-0') : 'cursor-pointer hover:bg-white hover:bg-opacity-10'
+                    }`}
+                  >
+                    {formatSyllable(currentQuestion.leftSyllable)}
+                  </div>
+                  <div
+                    onClick={() => !hasAnswered && handleAnswer('right')}
+                    className={`flex-1 font-bold text-8xl py-20 transition-all pointer-events-auto flex items-center justify-center ${
+                      hasAnswered ? (selectedSide === 'right' ? 'opacity-100' : 'opacity-0') : 'cursor-pointer hover:bg-white hover:bg-opacity-10'
+                    }`}
+                  >
+                    {formatSyllable(currentQuestion.rightSyllable)}
+                  </div>
+                </div>
+              )}
+
+              {/* Instructions */}
+              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
+                <div className="bg-black bg-opacity-60 text-white rounded-2xl px-8 py-4">
+                  <p className="text-2xl font-bold">
+                    Нажми ← или → (или выбери внизу)
+                  </p>
+                </div>
+              </div>
+            </div>
+          );
+        };
 
         const RussianSyllablesApp = () => {
           const consonants = ['б', 'в', 'г', 'д', 'ж', 'з', 'к', 'л', 'м', 'н', 'п', 'р', 'с', 'т', 'ф', 'х', 'ц', 'ч', 'ш', 'щ'];
@@ -173,6 +674,20 @@
             return () => window.removeEventListener('keydown', handleKeyPress);
           }, [showMenu, mode, selectedConsonant, soundEnabled, isUpperCase, currentSyllable, syllableOrder]);
 
+          // Render 3D Game mode
+          if (mode === '3d-game' && !showMenu) {
+            return (
+              <Game3D
+                onBack={() => setShowMenu(true)}
+                consonants={consonants}
+                vowels={vowels}
+                isValidSyllable={isValidSyllable}
+                syllableOrder={syllableOrder}
+                isUpperCase={isUpperCase}
+              />
+            );
+          }
+
           if (showMenu) {
             return (
               <div className="min-h-screen bg-gradient-to-br from-purple-400 via-pink-400 to-yellow-400 flex items-center justify-center p-4">
@@ -206,13 +721,19 @@
                     </button>
                   </div>
 
-                  <div className="mb-8">
+                  <div className="mb-8 space-y-4">
                     <button
                       onClick={() => startMode('random')}
                       className="w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-2xl p-8 text-3xl font-bold hover:shadow-xl transition-all transform hover:scale-105 flex items-center justify-center gap-4"
                     >
                       <Shuffle />
                       Случайные слоги
+                    </button>
+                    <button
+                      onClick={() => startMode('3d-game')}
+                      className="w-full bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-2xl p-8 text-3xl font-bold hover:shadow-xl transition-all transform hover:scale-105 flex items-center justify-center gap-4"
+                    >
+                      🏎️ 3D Игра
                     </button>
                   </div>
 
