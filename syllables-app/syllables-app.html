@@ -55,6 +55,7 @@
           const [currentQuestion, setCurrentQuestion] = useState(null);
           const [hasAnswered, setHasAnswered] = useState(false);
           const [selectedSide, setSelectedSide] = useState(null);
+          const [showInstructions, setShowInstructions] = useState(true);
           const currentObstacleRef = useRef(null);
 
           // Generate a random syllable
@@ -257,9 +258,116 @@
                   }
                 });
 
-                // Move obstacles
+                // Move obstacles and check for collisions
                 obstaclesRef.current.forEach(obstacle => {
                   obstacle.position.z += moveSpeed;
+
+                  // Check for collision with car (when obstacle is at car's Z position)
+                  if (!obstacle.userData.collisionHandled && obstacle.position.z > 0.5 && obstacle.position.z < 3.5) {
+                    obstacle.userData.collisionHandled = true;
+
+                    // Check if car and obstacle are on the same side
+                    const carX = carRef.current ? carRef.current.position.x : 0;
+                    const obstacleX = obstacle.position.x;
+                    const distance = Math.abs(carX - obstacleX);
+
+                    console.log('Collision check: carX=', carX, 'obstacleX=', obstacleX, 'distance=', distance, 'obstacle Z=', obstacle.position.z);
+
+                    if (distance < 1.5) {
+                      // HIT! Knock over the cone with dramatic animation
+                      console.log('HIT DETECTED!');
+                      const startRotationX = obstacle.rotation.x;
+                      const startRotationZ = obstacle.rotation.z;
+                      const startY = obstacle.position.y;
+                      const startX = obstacle.position.x;
+                      const startTime = Date.now();
+                      const knockDuration = 600;
+
+                      // Determine which direction to knock the cone
+                      const knockDirection = carX < obstacleX ? 1 : -1;
+
+                      // Change cone color to bright red when hit
+                      obstacle.material.color.setHex(0xFF0000);
+
+                      const animateKnock = () => {
+                        const elapsed = Date.now() - startTime;
+                        const progress = Math.min(elapsed / knockDuration, 1);
+                        const easeOut = 1 - Math.pow(1 - progress, 3); // Ease out cubic
+
+                        // Tumble and spin
+                        obstacle.rotation.x = startRotationX + (Math.PI * 2) * easeOut;
+                        obstacle.rotation.z = startRotationZ + (Math.PI * 1.5) * easeOut;
+
+                        // Fly to the side and up, then down
+                        obstacle.position.x = startX + knockDirection * 3 * easeOut;
+                        const bounceHeight = Math.sin(progress * Math.PI) * 1.5;
+                        obstacle.position.y = startY + bounceHeight;
+
+                        if (progress < 1) {
+                          requestAnimationFrame(animateKnock);
+                        }
+                      };
+                      animateKnock();
+
+                      // Camera shake
+                      const cameraStartPos = { x: cameraRef.current.position.x, y: cameraRef.current.position.y };
+                      const shakeStartTime = Date.now();
+                      const shakeDuration = 300;
+
+                      const shakeCamera = () => {
+                        const elapsed = Date.now() - shakeStartTime;
+                        const progress = Math.min(elapsed / shakeDuration, 1);
+                        const intensity = (1 - progress) * 0.15;
+
+                        cameraRef.current.position.x = cameraStartPos.x + (Math.random() - 0.5) * intensity;
+                        cameraRef.current.position.y = cameraStartPos.y + (Math.random() - 0.5) * intensity;
+
+                        if (progress < 1) {
+                          requestAnimationFrame(shakeCamera);
+                        } else {
+                          cameraRef.current.position.x = cameraStartPos.x;
+                          cameraRef.current.position.y = cameraStartPos.y;
+                        }
+                      };
+                      shakeCamera();
+
+                      // Car bounce and flash
+                      if (carRef.current) {
+                        const carBody = carRef.current.children[0];
+                        const originalColor = carBody.material.color.clone();
+                        carBody.material.color.setHex(0xFFFF00); // Bright yellow flash
+
+                        const carStartY = carRef.current.position.y;
+                        const bounceStartTime = Date.now();
+                        const bounceDuration = 200;
+
+                        const bounceCar = () => {
+                          const elapsed = Date.now() - bounceStartTime;
+                          const progress = Math.min(elapsed / bounceDuration, 1);
+                          const bounceAmount = Math.sin(progress * Math.PI * 2) * 0.2;
+                          carRef.current.position.y = carStartY + bounceAmount;
+
+                          if (progress < 1) {
+                            requestAnimationFrame(bounceCar);
+                          } else {
+                            carRef.current.position.y = carStartY;
+                          }
+                        };
+                        bounceCar();
+
+                        setTimeout(() => {
+                          carBody.material.color = originalColor;
+                        }, 200);
+                      }
+                    } else {
+                      // AVOIDED! Make cone flash green
+                      console.log('AVOIDED!');
+                      obstacle.material.color.setHex(0x00FF00);
+                      setTimeout(() => {
+                        obstacle.material.color.setHex(0xFF6600);
+                      }, 300);
+                    }
+                  }
                 });
 
                 // Check if current obstacle has passed the car
@@ -330,6 +438,14 @@
             };
           }, []);
 
+          // Hide instructions after 5 seconds
+          useEffect(() => {
+            const timer = setTimeout(() => {
+              setShowInstructions(false);
+            }, 5000);
+
+            return () => clearTimeout(timer);
+          }, []);
 
           // Create obstacles on road
           const createObstacle = (side) => {
@@ -342,10 +458,14 @@
             const xPosition = side === 'left' ? -2 : 2;
             cone.position.set(xPosition, 0.6, -15);
             cone.castShadow = true;
+            cone.userData.collisionHandled = false; // Initialize collision flag
+            cone.userData.side = side; // Track which side
 
             sceneRef.current.add(cone);
             obstaclesRef.current.push(cone);
             currentObstacleRef.current = cone; // Track this obstacle
+
+            console.log('Created obstacle on', side, 'at x:', xPosition);
           };
 
           // Handle answer
@@ -404,12 +524,15 @@
           // Handle keyboard controls
           useEffect(() => {
             const handleKeyDown = (e) => {
-              if (gameState !== 'playing' || hasAnswered) return;
+              if (gameState !== 'playing') return;
 
-              if (e.key === 'ArrowLeft') {
+              if (e.key === 'ArrowLeft' && !hasAnswered) {
                 handleAnswer('left');
-              } else if (e.key === 'ArrowRight') {
+              } else if (e.key === 'ArrowRight' && !hasAnswered) {
                 handleAnswer('right');
+              } else if (e.key === 'ArrowUp' && currentQuestion) {
+                // Repeat syllable pronunciation
+                speakSyllable(currentQuestion.correctSyllable);
               } else if (e.key === 'Escape') {
                 onBack();
               }
@@ -506,31 +629,35 @@
                 <div className="absolute bottom-0 left-0 right-0 flex pointer-events-none">
                   <div
                     onClick={() => !hasAnswered && handleAnswer('left')}
-                    className={`flex-1 font-bold text-8xl py-20 transition-all pointer-events-auto flex items-center justify-center ${
+                    className={`flex-1 font-bold text-8xl py-20 transition-all pointer-events-auto flex items-center justify-center gap-4 ${
                       hasAnswered ? (selectedSide === 'left' ? 'opacity-100' : 'opacity-0') : 'cursor-pointer hover:bg-white hover:bg-opacity-10'
                     }`}
                   >
+                    <span className="text-8xl font-bold text-white">←</span>
                     {formatSyllable(currentQuestion.leftSyllable)}
                   </div>
                   <div
                     onClick={() => !hasAnswered && handleAnswer('right')}
-                    className={`flex-1 font-bold text-8xl py-20 transition-all pointer-events-auto flex items-center justify-center ${
+                    className={`flex-1 font-bold text-8xl py-20 transition-all pointer-events-auto flex items-center justify-center gap-4 ${
                       hasAnswered ? (selectedSide === 'right' ? 'opacity-100' : 'opacity-0') : 'cursor-pointer hover:bg-white hover:bg-opacity-10'
                     }`}
                   >
                     {formatSyllable(currentQuestion.rightSyllable)}
+                    <span className="text-8xl font-bold text-white">→</span>
                   </div>
                 </div>
               )}
 
               {/* Instructions */}
-              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
-                <div className="bg-black bg-opacity-60 text-white rounded-2xl px-8 py-4">
-                  <p className="text-2xl font-bold">
-                    Нажми ← или → (или выбери внизу)
-                  </p>
+              {showInstructions && (
+                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
+                  <div className="bg-black bg-opacity-60 text-white rounded-2xl px-8 py-4">
+                    <p className="text-2xl font-bold">
+                      ← или → для ответа | ↑ повторить
+                    </p>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           );
         };
