@@ -1,3 +1,5 @@
+import { MenuIcon } from '../../../shared/components/Icons';
+
 /**
  * GameHUD Component
  *
@@ -24,7 +26,7 @@ const GameHUD = ({ speed, score, correctAnswers, totalQuestions, onBack }) => {
           onClick={onBack}
           className="bg-red-500 hover:bg-red-600 text-white rounded-xl px-6 py-3 text-xl font-bold transition"
         >
-          ☰ Меню
+          <MenuIcon className="inline" /> Меню
         </button>
       </div>
     </div>
