@@ -403,18 +403,26 @@ const Game3D = ({ onBack, consonants, vowels, syllableOrder, isUpperCase }) => {
               };
               shakeCamera();
 
-              // Car flash
+              // Car flash - change to yellow then restore
               if (carRef.current) {
-                const bodyParts = [];
-                const originalColors = [];
-
                 carRef.current.children.forEach((child) => {
                   if (child.material && child.material.color) {
-                    bodyParts.push(child);
-                    originalColors.push(child.material.color.clone());
-                    if (child.material.color.getHex() !== 0x1a1a1a && child.material.color.getHex() !== 0x333333) {
+                    const colorHex = child.material.color.getHex();
+                    if (colorHex !== 0x1a1a1a && colorHex !== 0x333333) {
                       child.material.color.setHex(0xFFFF00);
                     }
+                  }
+
+                  // Process nested children (like wheel groups)
+                  if (child.children && child.children.length > 0) {
+                    child.children.forEach((nestedChild) => {
+                      if (nestedChild.material && nestedChild.material.color) {
+                        const colorHex = nestedChild.material.color.getHex();
+                        if (colorHex !== 0x1a1a1a && colorHex !== 0x333333 && colorHex !== 0xC0C0C0) {
+                          nestedChild.material.color.setHex(0xFFFF00);
+                        }
+                      }
+                    });
                   }
                 });
 
@@ -436,9 +444,27 @@ const Game3D = ({ onBack, consonants, vowels, syllableOrder, isUpperCase }) => {
                 };
                 bounceCar();
 
+                // Restore original colors after flash
                 setTimeout(() => {
-                  bodyParts.forEach((part, index) => {
-                    part.material.color.copy(originalColors[index]);
+                  carRef.current.children.forEach((child) => {
+                    if (child.material && child.material.color) {
+                      const colorHex = child.material.color.getHex();
+                      if (colorHex === 0xFFFF00) {
+                        child.material.color.setHex(0xFF0000);
+                      }
+                    }
+
+                    // Process nested children (like wheel groups)
+                    if (child.children && child.children.length > 0) {
+                      child.children.forEach((nestedChild) => {
+                        if (nestedChild.material && nestedChild.material.color) {
+                          const colorHex = nestedChild.material.color.getHex();
+                          if (colorHex === 0xFFFF00) {
+                            nestedChild.material.color.setHex(0xFF0000);
+                          }
+                        }
+                      });
+                    }
                   });
                 }, 200);
               }
