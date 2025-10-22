@@ -77,30 +77,32 @@ const Game3D = ({ onBack, consonants, vowels, syllableOrder, isUpperCase }) => {
     };
   };
 
-  // Initialize Three.js scene
-  useEffect(() => {
-    if (!mountRef.current) return;
-
-    // Scene setup
+  const setupScene = () => {
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x87CEEB);
     scene.fog = new THREE.Fog(0x87CEEB, 10, 100);
     sceneRef.current = scene;
+    return scene;
+  };
 
-    // Camera
+  const setupCamera = () => {
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set(0, 3, 5);
     camera.lookAt(0, 0, -10);
     cameraRef.current = camera;
+    return camera;
+  };
 
-    // Renderer
+  const setupRenderer = () => {
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.shadowMap.enabled = true;
     mountRef.current.appendChild(renderer.domElement);
     rendererRef.current = renderer;
+    return renderer;
+  };
 
-    // Lights
+  const setupLights = (scene) => {
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
     scene.add(ambientLight);
 
@@ -119,7 +121,10 @@ const Game3D = ({ onBack, consonants, vowels, syllableOrder, isUpperCase }) => {
     fillLight.position.set(-5, 5, -5);
     scene.add(fillLight);
 
-    // Sun
+    return { ambientLight, directionalLight, fillLight };
+  };
+
+  const setupSun = (scene) => {
     const sunGeometry = new THREE.SphereGeometry(3, 16, 16);
     const sunMaterial = new THREE.MeshBasicMaterial({
       color: 0xFFDD88,
@@ -129,8 +134,10 @@ const Game3D = ({ onBack, consonants, vowels, syllableOrder, isUpperCase }) => {
     const sun = new THREE.Mesh(sunGeometry, sunMaterial);
     sun.position.set(30, 25, -40);
     scene.add(sun);
+    return sun;
+  };
 
-    // Road segments
+  const setupRoad = (scene) => {
     const roadGeometry = new THREE.PlaneGeometry(8, 25);
     const roadMaterial = new THREE.MeshStandardMaterial({ color: 0x333333 });
     for (let i = 0; i < 8; i++) {
@@ -154,7 +161,10 @@ const Game3D = ({ onBack, consonants, vowels, syllableOrder, isUpperCase }) => {
       roadSegmentsRef.current.push(marking);
     }
 
-    // Grass
+    return roadSegmentsRef.current;
+  };
+
+  const setupGrass = (scene) => {
     const grassGeometry = new THREE.PlaneGeometry(50, 100);
     const grassMaterial = new THREE.MeshStandardMaterial({ color: 0x2d5016 });
     for (let i = 0; i < 4; i++) {
@@ -175,7 +185,10 @@ const Game3D = ({ onBack, consonants, vowels, syllableOrder, isUpperCase }) => {
       roadSegmentsRef.current.push(grassRight);
     }
 
-    // Add scenery
+    return roadSegmentsRef.current;
+  };
+
+  const setupTrees = (scene) => {
     for (let i = 0; i < 20; i++) {
       const z = -i * 8;
       const treeLeft = createTree(-8 - Math.random() * 3, z + Math.random() * 4);
@@ -187,19 +200,24 @@ const Game3D = ({ onBack, consonants, vowels, syllableOrder, isUpperCase }) => {
       sceneryObjectsRef.current.push({ obj: treeRight, resetZ: -160 });
     }
 
-    // Clouds
+    return sceneryObjectsRef.current;
+  };
+
+  const setupClouds = (scene) => {
     for (let i = 0; i < 10; i++) {
       const cloud = createCloud((Math.random() - 0.5) * 80, 15 + Math.random() * 10, -Math.random() * 100);
       scene.add(cloud);
     }
+  };
 
-    // Mountains
+  const setupMountains = (scene) => {
     for (let i = 0; i < 12; i++) {
       const mountain = createMountain((Math.random() - 0.5) * 100, -60 - Math.random() * 40);
       scene.add(mountain);
     }
+  };
 
-    // Buildings
+  const setupBuildings = (scene) => {
     for (let i = 0; i < 15; i++) {
       const z = -Math.random() * 100;
       const buildingLeft = createBuilding(-15 - Math.random() * 10, z);
@@ -210,8 +228,9 @@ const Game3D = ({ onBack, consonants, vowels, syllableOrder, isUpperCase }) => {
       scene.add(buildingRight);
       sceneryObjectsRef.current.push({ obj: buildingRight, resetZ: -100 });
     }
+  };
 
-    // Street lamps
+  const setupStreetLamps = (scene) => {
     for (let i = 0; i < 25; i++) {
       const z = -i * 6;
       const lampLeft = createStreetLamp(-5, z);
@@ -222,8 +241,9 @@ const Game3D = ({ onBack, consonants, vowels, syllableOrder, isUpperCase }) => {
       scene.add(lampRight);
       sceneryObjectsRef.current.push({ obj: lampRight, resetZ: -150 });
     }
+  };
 
-    // Rocks
+  const setupRocks = (scene) => {
     for (let i = 0; i < 30; i++) {
       const z = -Math.random() * 100;
       const side = Math.random() > 0.5 ? 1 : -1;
@@ -232,8 +252,9 @@ const Game3D = ({ onBack, consonants, vowels, syllableOrder, isUpperCase }) => {
       scene.add(rock);
       sceneryObjectsRef.current.push({ obj: rock, resetZ: -100 });
     }
+  };
 
-    // Flowers
+  const setupFlowers = (scene) => {
     for (let i = 0; i < 40; i++) {
       const z = -Math.random() * 100;
       const side = Math.random() > 0.5 ? 1 : -1;
@@ -242,8 +263,9 @@ const Game3D = ({ onBack, consonants, vowels, syllableOrder, isUpperCase }) => {
       scene.add(flower);
       sceneryObjectsRef.current.push({ obj: flower, resetZ: -100 });
     }
+  };
 
-    // Birds
+  const setupBirds = (scene) => {
     const birds = [];
     for (let i = 0; i < 8; i++) {
       const bird = createBird((Math.random() - 0.5) * 40, 8 + Math.random() * 8, -20 - Math.random() * 60);
@@ -252,6 +274,32 @@ const Game3D = ({ onBack, consonants, vowels, syllableOrder, isUpperCase }) => {
       bird.userData.initialZ = bird.position.z;
     }
     birdsRef.current = birds;
+    return birds;
+  };
+
+  // Initialize Three.js scene
+  useEffect(() => {
+    if (!mountRef.current) return;
+
+    const scene = setupScene();
+    const camera = setupCamera();
+    const renderer = setupRenderer();
+
+    setupLights(scene);
+    setupSun(scene);
+
+    setupRoad(scene);
+    setupGrass(scene);
+
+    // Scenery
+    setupTrees(scene);
+    setupClouds(scene);
+    setupMountains(scene);
+    setupBuildings(scene);
+    setupStreetLamps(scene);
+    setupRocks(scene);
+    setupFlowers(scene);
+    setupBirds(scene);
 
     // Car
     const car = createCar();
