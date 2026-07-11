@@ -1,3 +1,5 @@
+import { isConsonant } from '../../../shared/utils/russianOrthography';
+
 /**
  * SyllableChoices Component
  *
@@ -9,16 +11,16 @@ const SyllableChoices = ({ question, hasAnswered, selectedSide, syllableOrder, i
   const formatSyllable = (syllable) => {
     if (!syllable) return '';
     const chars = syllable.split('');
-    const formatted = chars.map(char => isUpperCase ? char.toUpperCase() : char);
 
+    // Color by letter type (consonant = blue, vowel = red) so it stays correct
+    // even in mixed mode where each syllable may be CV or VC.
     return (
       <>
-        <span className={syllableOrder === 'cv' ? 'text-blue-400' : 'text-red-400'}>
-          {formatted[0]}
-        </span>
-        <span className={syllableOrder === 'cv' ? 'text-red-400' : 'text-blue-400'}>
-          {formatted[1]}
-        </span>
+        {chars.map((char, i) => (
+          <span key={i} className={isConsonant(char) ? 'text-blue-400' : 'text-red-400'}>
+            {isUpperCase ? char.toUpperCase() : char}
+          </span>
+        ))}
       </>
     );
   };

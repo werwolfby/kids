@@ -16,6 +16,24 @@ export const vowels = [
   'а', 'о', 'у', 'ы', 'э', 'я', 'ё', 'ю', 'и', 'е'
 ];
 
+// The soft sign softens a preceding consonant. It is not a vowel and can only
+// appear AFTER a consonant (never at the start of a syllable).
+export const SOFT_SIGN = 'ь';
+
+// Consonants that don't take a soft sign in Russian: velars (г, к, х) and ц.
+// The hushing consonants ж, ш, ч, щ are allowed because they occur in real
+// words (ночь, рожь, мышь, вещь, дочь).
+const softSignInvalidConsonants = ['г', 'к', 'х', 'ц'];
+
+/**
+ * Whether a consonant can be followed by a soft sign (е.g. Н → НЬ)
+ * @param {string} consonant - The consonant letter
+ * @returns {boolean}
+ */
+export const canTakeSoftSign = (consonant) => {
+  return consonants.includes(consonant) && !softSignInvalidConsonants.includes(consonant);
+};
+
 /**
  * List of invalid syllables according to Russian orthography rules
  *
@@ -37,6 +55,15 @@ const invalidSyllables = [
   // Ц: не сочетается с Я, Ё, Ю, Э
   'ця', 'цё', 'цю', 'цэ'
 ];
+
+/**
+ * Checks if a letter is a Russian consonant
+ * @param {string} letter - The letter to check
+ * @returns {boolean} - True if the letter is a consonant
+ */
+export const isConsonant = (letter) => {
+  return consonants.includes((letter || '').toLowerCase());
+};
 
 /**
  * Checks if a syllable is valid according to Russian orthography rules

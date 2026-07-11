@@ -9,69 +9,93 @@ import {
   consonants,
   vowels,
   isValidSyllable,
-  getRandomConsonant,
-  getRandomVowel,
-  getValidVowelsForConsonant
+  canTakeSoftSign,
+  SOFT_SIGN
 } from './russianOrthography.js';
 
 /**
- * Generates a random syllable
- * @param {string} order - 'cv' for consonant-vowel, 'vc' for vowel-consonant
- * @returns {string} - A random syllable
+ * Resolves the syllable order for a single syllable.
+ * 'mixed' randomly becomes 'cv' or 'vc' on each call, so a mixed session
+ * produces an unpredictable blend of both orders.
+ * @param {string} order - 'cv', 'vc', or 'mixed'
+ * @returns {string} - 'cv' or 'vc'
  */
-export const generateRandomSyllable = (order = 'cv') => {
-  let consonant, vowel;
+const resolveOrder = (order) => {
+  if (order === 'mixed') {
+    return Math.random() < 0.5 ? 'cv' : 'vc';
+  }
+  return order;
+};
+
+// An empty/missing selection means "all of them".
+const orAll = (selected, all) => (selected && selected.length > 0 ? selected : all);
+
+/**
+ * Builds the full list of syllables allowed by the given constraints.
+ * Enumerating the pool (rather than reject-sampling) keeps generation correct
+ * and guarantees termination even for tiny selections.
+ * @param {string} order - resolved 'cv' or 'vc'
+ * @param {object} options - { consonants, vowels, softSign }
+ * @returns {string[]} - Every valid syllable for these constraints
+ */
+const buildSyllablePool = (order, { consonants: ac, vowels: av, softSign = false } = {}) => {
+  const cons = orAll(ac, consonants);
+  const vows = orAll(av, vowels);
+  const pool = [];
 
   if (order === 'cv') {
-    // For CV order, ensure valid combination
-    do {
-      consonant = getRandomConsonant();
-      vowel = getRandomVowel();
-    } while (!isValidSyllable(consonant, vowel));
-    return consonant + vowel;
+    for (const c of cons) {
+      for (const v of vows) {
+        if (isValidSyllable(c, v)) pool.push(c + v);
+      }
+      // Soft sign sits in the vowel slot but only after a consonant (CV only).
+      if (softSign && canTakeSoftSign(c)) pool.push(c + SOFT_SIGN);
+    }
   } else {
-    // For VC order, all combinations are valid
-    vowel = getRandomVowel();
-    consonant = getRandomConsonant();
-    return vowel + consonant;
+    // VC: vowel first, then consonant — every combination is valid, no soft sign.
+    for (const v of vows) {
+      for (const c of cons) {
+        pool.push(v + c);
+      }
+    }
   }
+
+  return pool;
 };
 
 /**
- * Generates a syllable with a specific consonant
- * @param {string} consonant - The consonant to use
- * @param {string} order - 'cv' for consonant-vowel, 'vc' for vowel-consonant
- * @returns {string} - A syllable with the given consonant
+ * Generates a random syllable
+ * @param {string} order - 'cv', 'vc', or 'mixed'
+ * @param {object} options - { consonants?, vowels?, softSign? } (empty arrays = all)
+ * @returns {string} - A random syllable
  */
-export const generateSyllableWithConsonant = (consonant, order = 'cv') => {
-  let vowel;
+export const generateRandomSyllable = (order = 'cv', options = {}) => {
+  order = resolveOrder(order);
+  let pool = buildSyllablePool(order, options);
 
-  if (order === 'cv') {
-    // For CV mode, get only valid vowels for this consonant
-    const validVowels = getValidVowelsForConsonant(consonant);
-    vowel = validVowels[Math.floor(Math.random() * validVowels.length)];
-    return consonant + vowel;
-  } else {
-    // For VC mode, no validation needed - all combinations are valid
-    vowel = getRandomVowel();
-    return vowel + consonant;
+  // The selection can rule out every syllable (e.g. only Ж + only Ы in CV order).
+  // Fall back to ignoring the letter filters so we always show something valid.
+  if (pool.length === 0) {
+    pool = buildSyllablePool(order, { softSign: options.softSign });
   }
+
+  return pool[Math.floor(Math.random() * pool.length)];
 };
 
 /**
  * Generates a syllable different from the given one
  * @param {string} currentSyllable - The syllable to avoid
- * @param {string} order - 'cv' for consonant-vowel, 'vc' for vowel-consonant
- * @param {string|null} selectedConsonant - Optional consonant filter
- * @returns {string} - A new syllable different from currentSyllable
+ * @param {string} order - 'cv', 'vc', or 'mixed'
+ * @param {object} options - { consonants?, vowels?, softSign? }
+ * @returns {string} - A new syllable, or the same one if only one is possible
  */
-export const generateDifferentSyllable = (currentSyllable, order = 'cv', selectedConsonant = null) => {
-  let newSyllable;
-  do {
-    newSyllable = selectedConsonant
-      ? generateSyllableWithConsonant(selectedConsonant, order)
-      : generateRandomSyllable(order);
-  } while (newSyllable === currentSyllable);
+export const generateDifferentSyllable = (currentSyllable, order = 'cv', options = {}) => {
+  let newSyllable = currentSyllable;
+  // Bounded retry: if the constraints allow only one syllable, give up gracefully.
+  for (let i = 0; i < 25; i++) {
+    newSyllable = generateRandomSyllable(order, options);
+    if (newSyllable !== currentSyllable) return newSyllable;
+  }
   return newSyllable;
 };
 

@@ -6,7 +6,6 @@ import { MODE, SYLLABLE_ORDER, BACKGROUNDS } from './constants';
 import { consonants, vowels } from '../../shared/utils/russianOrthography';
 import {
   generateRandomSyllable,
-  generateSyllableWithConsonant,
   generateDifferentSyllable
 } from '../../shared/utils/syllables';
 import { speakSyllable } from '../../shared/utils/speech';
@@ -22,7 +21,11 @@ import { speakSyllable } from '../../shared/utils/speech';
  */
 const SyllablesApp = () => {
   const [mode, setMode] = useState(MODE.RANDOM);
-  const [selectedConsonant, setSelectedConsonant] = useState('');
+  // Consonants/vowels the child is practising. Empty = all of them.
+  const [selectedConsonants, setSelectedConsonants] = useState([]);
+  const [selectedVowels, setSelectedVowels] = useState([]);
+  // Include syllables ending in the soft sign (СОГ + Ь), CV order only.
+  const [softSign, setSoftSign] = useState(false);
   const [currentSyllable, setCurrentSyllable] = useState('');
   const [count, setCount] = useState(0);
   const [animate, setAnimate] = useState(false);
@@ -31,23 +34,35 @@ const SyllablesApp = () => {
   const [bgIndex, setBgIndex] = useState(0);
   const [isUpperCase, setIsUpperCase] = useState(true);
   const [syllableOrder, setSyllableOrder] = useState(SYLLABLE_ORDER.CV);
+  // Show the чистоговорка / sample word under the card (can distract some kids)
+  const [showHints, setShowHints] = useState(true);
+
+  // Toggles a letter in/out of a selection set
+  const toggleInSet = (setter) => (letter) => {
+    setter(prev =>
+      prev.includes(letter) ? prev.filter(l => l !== letter) : [...prev, letter]
+    );
+  };
+  const toggleConsonant = toggleInSet(setSelectedConsonants);
+  const toggleVowel = toggleInSet(setSelectedVowels);
+
+  // The letter/soft-sign constraints passed to the syllable generator
+  const syllableOptions = {
+    consonants: selectedConsonants,
+    vowels: selectedVowels,
+    softSign
+  };
 
   /**
-   * Starts a mode with optional consonant selection
+   * Starts a mode, restricted to the selected letters (or all if none selected)
    */
-  const startMode = (newMode, consonant = '') => {
+  const startMode = (newMode) => {
     setMode(newMode);
-    setSelectedConsonant(consonant);
     setCount(0);
     setShowMenu(false);
 
-    // Generate first syllable
-    const firstSyllable = newMode === MODE.RANDOM
-      ? generateRandomSyllable(syllableOrder)
-      : generateSyllableWithConsonant(consonant, syllableOrder);
-
-    setCurrentSyllable(firstSyllable);
-    // First syllable shows WITHOUT audio
+    // Generate first syllable (shown WITHOUT audio)
+    setCurrentSyllable(generateRandomSyllable(syllableOrder, syllableOptions));
   };
 
   /**
@@ -59,7 +74,7 @@ const SyllablesApp = () => {
       const newSyllable = generateDifferentSyllable(
         currentSyllable,
         syllableOrder,
-        mode === MODE.SELECTED ? selectedConsonant : null
+        syllableOptions
       );
 
       setCurrentSyllable(newSyllable);
@@ -101,15 +116,16 @@ const SyllablesApp = () => {
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [showMenu, mode, selectedConsonant, soundEnabled, currentSyllable, syllableOrder]);
+  }, [showMenu, mode, selectedConsonants, selectedVowels, softSign, soundEnabled, currentSyllable, syllableOrder]);
 
   // Handle 3D game mode
   if (mode === MODE.GAME_3D && !showMenu) {
     return (
       <Game3D
         onBack={() => setShowMenu(true)}
-        consonants={consonants}
-        vowels={vowels}
+        consonants={selectedConsonants.length > 0 ? selectedConsonants : consonants}
+        vowels={selectedVowels.length > 0 ? selectedVowels : vowels}
+        softSign={softSign}
         syllableOrder={syllableOrder}
         isUpperCase={isUpperCase}
       />
@@ -122,6 +138,16 @@ const SyllablesApp = () => {
       <SyllablesMenu
         syllableOrder={syllableOrder}
         onSyllableOrderChange={setSyllableOrder}
+        selectedConsonants={selectedConsonants}
+        onToggleConsonant={toggleConsonant}
+        onClearConsonants={() => setSelectedConsonants([])}
+        onSelectAllConsonants={() => setSelectedConsonants([...consonants])}
+        selectedVowels={selectedVowels}
+        onToggleVowel={toggleVowel}
+        onClearVowels={() => setSelectedVowels([])}
+        onSelectAllVowels={() => setSelectedVowels([...vowels])}
+        softSign={softSign}
+        onToggleSoftSign={() => setSoftSign(prev => !prev)}
         onStartMode={startMode}
       />
     );
@@ -137,10 +163,14 @@ const SyllablesApp = () => {
       soundEnabled={soundEnabled}
       bgIndex={bgIndex}
       isUpperCase={isUpperCase}
-      selectedConsonant={mode === MODE.SELECTED ? selectedConsonant : null}
+      selectedConsonants={selectedConsonants}
+      selectedVowels={selectedVowels}
+      softSign={softSign}
+      showHints={showHints}
       onToggleSound={() => setSoundEnabled(!soundEnabled)}
       onChangeBg={() => setBgIndex((bgIndex + 1) % BACKGROUNDS.length)}
       onToggleCase={() => setIsUpperCase(!isUpperCase)}
+      onToggleHints={() => setShowHints(!showHints)}
       onShowMenu={() => setShowMenu(true)}
       onNextSyllable={nextSyllable}
     />

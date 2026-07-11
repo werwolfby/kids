@@ -5,7 +5,6 @@ import GameOver from './components/GameOver';
 import Instructions from './components/Instructions';
 import SyllableChoices from './components/SyllableChoices';
 import { generateRandomSyllable } from '../../shared/utils/syllables';
-import { isValidSyllable } from '../../shared/utils/russianOrthography';
 import { speakSyllable } from '../../shared/utils/speech';
 import { createCar } from './scene/createCar';
 import { createTree } from './scene/createTree';
@@ -22,7 +21,7 @@ import { createFlower } from './scene/createFlower';
  *
  * 3D racing game where players choose the correct syllable to avoid obstacles
  */
-const Game3D = ({ onBack, consonants, vowels, syllableOrder, isUpperCase }) => {
+const Game3D = ({ onBack, consonants, vowels, softSign = false, syllableOrder, isUpperCase }) => {
   const mountRef = useRef(null);
   const sceneRef = useRef(null);
   const cameraRef = useRef(null);
@@ -45,15 +44,10 @@ const Game3D = ({ onBack, consonants, vowels, syllableOrder, isUpperCase }) => {
   const [selectedSide, setSelectedSide] = useState(null);
   const [showInstructions, setShowInstructions] = useState(true);
 
-  // Generate syllables
-  const generateSyllable = () => {
-    let consonant, vowel;
-    do {
-      consonant = consonants[Math.floor(Math.random() * consonants.length)];
-      vowel = vowels[Math.floor(Math.random() * vowels.length)];
-    } while (syllableOrder === 'cv' && !isValidSyllable(consonant, vowel));
-    return syllableOrder === 'cv' ? consonant + vowel : vowel + consonant;
-  };
+  // Generate syllables using the shared generator so orthography, mixed order,
+  // and the soft sign all behave the same as in the flashcard mode.
+  const generateSyllable = () =>
+    generateRandomSyllable(syllableOrder, { consonants, vowels, softSign });
 
   const generateWrongSyllable = (correctSyllable) => {
     let wrongSyllable;

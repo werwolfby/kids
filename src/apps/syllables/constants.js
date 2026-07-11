@@ -11,12 +11,12 @@ export const BACKGROUNDS = [
 ];
 
 export const SYLLABLE_ORDER = {
-  CV: 'cv', // consonant-vowel (БА)
-  VC: 'vc'  // vowel-consonant (АБ)
+  CV: 'cv',       // consonant-vowel (БА)
+  VC: 'vc',       // vowel-consonant (АБ)
+  MIXED: 'mixed'  // randomly CV or VC per syllable (БА / АБ)
 };
 
 export const MODE = {
   RANDOM: 'random',
-  SELECTED: 'selected',
   GAME_3D: '3d-game'
 };
