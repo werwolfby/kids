@@ -66,6 +66,17 @@ export const isConsonant = (letter) => {
 };
 
 /**
+ * Checks if a letter is a Russian vowel.
+ * Everything that is NOT a vowel (consonants, й, ь, ъ) is treated as
+ * "not a vowel" — handy for colouring letters as vowel/consonant.
+ * @param {string} letter - The letter to check
+ * @returns {boolean} - True if the letter is a vowel
+ */
+export const isVowel = (letter) => {
+  return vowels.includes((letter || '').toLowerCase());
+};
+
+/**
  * Checks if a syllable is valid according to Russian orthography rules
  * @param {string} consonant - The consonant letter
  * @param {string} vowel - The vowel letter

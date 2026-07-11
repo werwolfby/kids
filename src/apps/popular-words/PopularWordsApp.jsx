@@ -1,13 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { popularWords } from './wordsData';
+import { isVowel } from '../../shared/utils/russianOrthography';
 import { BACKGROUNDS } from '../syllables/constants';
 import { speak, cancelSpeech } from '../../shared/utils/speech';
 import { SoundOnIcon, SoundOffIcon, PaletteIcon, MenuIcon, ShuffleIcon } from '../../shared/components/Icons';
-
-// Colours cycled across warehouses so each «склад» stands out while reading.
-const WAREHOUSE_COLORS_LIGHT = ['text-blue-600', 'text-red-600', 'text-green-600', 'text-purple-600'];
-const WAREHOUSE_COLORS_DARK = ['text-blue-400', 'text-red-400', 'text-green-400', 'text-purple-400'];
 
 /**
  * PopularWordsApp
@@ -146,7 +143,10 @@ const PopularWordsApp = () => {
     return () => window.removeEventListener('keydown', handleKey);
   }, [next, prev, navigate, showRange]);
 
-  const warehouseColors = isDark ? WAREHOUSE_COLORS_DARK : WAREHOUSE_COLORS_LIGHT;
+  // Consonants blue, vowels red (as in the syllables app).
+  const charColor = (ch) => isVowel(ch)
+    ? (isDark ? 'text-red-400' : 'text-red-600')
+    : (isDark ? 'text-blue-400' : 'text-blue-600');
   const fmt = (s) => (isUpperCase ? s.toUpperCase() : s);
 
   // Scale font down for longer words so they stay on one line
@@ -267,7 +267,9 @@ const PopularWordsApp = () => {
                 {i > 0 && showDashes && (
                   <span className={`${isDark ? 'text-gray-600' : 'text-gray-300'} px-[0.05em]`}>-</span>
                 )}
-                <span className={warehouseColors[i % warehouseColors.length]}>{fmt(wh)}</span>
+                {wh.split('').map((ch, ci) => (
+                  <span key={ci} className={charColor(ch)}>{fmt(ch)}</span>
+                ))}
               </span>
             ))}
           </div>
