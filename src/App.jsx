@@ -1,5 +1,6 @@
 import { HashRouter as Router, Routes, Route, Link } from 'react-router-dom'
 import SyllablesApp from './apps/syllables/SyllablesApp'
+import PopularWordsApp from './apps/popular-words/PopularWordsApp'
 
 const AppsIndex = () => {
   const apps = [
@@ -12,6 +13,16 @@ const AppsIndex = () => {
       path: '/syllables',
       icon: '📚',
       color: 'from-blue-400 to-purple-500'
+    },
+    {
+      id: 'popular-words',
+      title: 'Popular Words',
+      titleRu: 'Популярные слова',
+      description: 'Read the 1000 most common Russian words, split into warehouses',
+      descriptionRu: 'Читаем 1000 самых частых русских слов, разбитых на склады',
+      path: '/popular-words',
+      icon: '📖',
+      color: 'from-green-400 to-teal-500'
     }
   ];
 
@@ -105,6 +116,7 @@ function App() {
       <Routes>
         <Route path="/" element={<AppsIndex />} />
         <Route path="/syllables" element={<SyllablesApp />} />
+        <Route path="/popular-words" element={<PopularWordsApp />} />
       </Routes>
     </Router>
   )

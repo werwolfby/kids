@@ -9,3 +9,46 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* Dual-thumb range slider (two overlapping range inputs share one track).
+   The input bodies ignore pointer events so both thumbs stay grabbable. */
+.dual-range {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 2rem;
+  margin: 0;
+  background: none;
+  pointer-events: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.dual-range::-webkit-slider-runnable-track,
+.dual-range::-moz-range-track {
+  background: transparent;
+  border: none;
+}
+.dual-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  pointer-events: auto;
+  height: 1.75rem;
+  width: 1.75rem;
+  border-radius: 9999px;
+  background: #ffffff;
+  border: 3px solid #7c3aed;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  cursor: grab;
+}
+.dual-range::-webkit-slider-thumb:active { cursor: grabbing; }
+.dual-range::-moz-range-thumb {
+  pointer-events: auto;
+  height: 1.75rem;
+  width: 1.75rem;
+  border-radius: 9999px;
+  background: #ffffff;
+  border: 3px solid #7c3aed;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  cursor: grab;
+}
