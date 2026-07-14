@@ -183,10 +183,11 @@ const SentencesApp = () => {
         </button>
       </div>
 
-      {/* Prev / Next arrows */}
+      {/* Prev / Next arrows — bottom corners on mobile (so they don't cover the
+          sentence card), vertically-centred sides on desktop. */}
       <button
         onClick={(e) => { e.stopPropagation(); prev(); }}
-        className={`absolute left-1 md:left-6 top-1/2 -translate-y-1/2 z-10 rounded-full w-12 h-12 md:w-20 md:h-20 shadow-lg text-3xl md:text-5xl font-bold transition ${
+        className={`absolute z-10 left-3 bottom-20 md:left-6 md:bottom-auto md:top-1/2 md:-translate-y-1/2 rounded-full w-12 h-12 md:w-20 md:h-20 shadow-lg text-3xl md:text-5xl font-bold transition ${
           isDark ? 'bg-white/80 text-gray-800 hover:bg-white' : 'bg-gray-900/70 text-white hover:bg-gray-900'
         }`}
         title="Предыдущее"
@@ -195,7 +196,7 @@ const SentencesApp = () => {
       </button>
       <button
         onClick={(e) => { e.stopPropagation(); next(); }}
-        className={`absolute right-1 md:right-6 top-1/2 -translate-y-1/2 z-10 rounded-full w-12 h-12 md:w-20 md:h-20 shadow-lg text-3xl md:text-5xl font-bold transition ${
+        className={`absolute z-10 right-3 bottom-20 md:right-6 md:bottom-auto md:top-1/2 md:-translate-y-1/2 rounded-full w-12 h-12 md:w-20 md:h-20 shadow-lg text-3xl md:text-5xl font-bold transition ${
           isDark ? 'bg-white/80 text-gray-800 hover:bg-white' : 'bg-gray-900/70 text-white hover:bg-gray-900'
         }`}
         title="Следующее"
