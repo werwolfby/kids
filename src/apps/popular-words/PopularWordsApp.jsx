@@ -21,7 +21,9 @@ const PopularWordsApp = () => {
   const [isUpperCase, setIsUpperCase] = useState(true);
   const [shuffle, setShuffle] = useState(false);   // вперемешку vs по порядку
   const [showDashes, setShowDashes] = useState(true);
-  const [history, setHistory] = useState([]);       // для «назад» в режиме вперемешку
+  // История просмотра (как в браузере): список показанных индексов + позиция.
+  const [history, setHistory] = useState([0]);
+  const [histPos, setHistPos] = useState(0);
 
   const total = popularWords.length;
   // Активный диапазон как границы 0..total: изучаются слова с индексами [from, to).
@@ -47,16 +49,6 @@ const PopularWordsApp = () => {
     speak(word, { rate: 0.8, pitch: 1.1 });
   }, []);
 
-  const goTo = useCallback((nextIndex) => {
-    const len = hi - lo + 1;
-    const wrapped = lo + (((nextIndex - lo) % len) + len) % len; // wrap inside [lo, hi]
-    setAnimate(true);
-    setTimeout(() => {
-      setIndex(wrapped);
-      setAnimate(false);
-    }, 120);
-  }, [lo, hi]);
-
   const randomIndex = useCallback(() => {
     const len = hi - lo + 1;
     if (len <= 1) return lo;
@@ -65,28 +57,41 @@ const PopularWordsApp = () => {
     return r;
   }, [lo, hi, index]);
 
-  const next = useCallback(() => {
-    if (shuffle) {
-      setHistory(h => [...h, index]);
-      goTo(randomIndex());
-    } else {
-      goTo(index + 1);
-    }
-  }, [shuffle, goTo, index, randomIndex]);
+  // Показать слово по индексу, обновив историю просмотра.
+  const showAt = useCallback((newIndex, hist, pos) => {
+    setAnimate(true);
+    setTimeout(() => {
+      setIndex(newIndex);
+      setHistory(hist);
+      setHistPos(pos);
+      setAnimate(false);
+    }, 120);
+  }, []);
 
-  const prev = useCallback(() => {
-    if (shuffle) {
-      if (history.length === 0) { goTo(randomIndex()); return; }
-      const last = history[history.length - 1];
-      setHistory(h => h.slice(0, -1));
-      goTo(last);
+  // Вперёд: если раньше нажимали «назад» — идём вперёд по истории; иначе
+  // показываем новое слово (случайное или следующее по порядку в диапазоне).
+  const next = useCallback(() => {
+    if (histPos < history.length - 1) {
+      const pos = histPos + 1;
+      showAt(history[pos], history, pos);
     } else {
-      goTo(index - 1);
+      const newIndex = shuffle ? randomIndex() : (index + 1 > hi ? lo : index + 1);
+      const hist = [...history, newIndex];
+      showAt(newIndex, hist, hist.length - 1);
     }
-  }, [shuffle, history, goTo, index, randomIndex]);
+  }, [histPos, history, shuffle, randomIndex, index, lo, hi, showAt]);
+
+  // Назад: всегда возвращает к реально показанному ранее слову (в любом режиме).
+  const prev = useCallback(() => {
+    if (histPos > 0) {
+      const pos = histPos - 1;
+      showAt(history[pos], history, pos);
+    }
+  }, [histPos, history, showAt]);
 
   const toggleShuffle = () => {
-    setHistory([]);
+    setHistory([index]);
+    setHistPos(0);
     setShuffle(s => !s);
   };
 
@@ -96,8 +101,9 @@ const PopularWordsApp = () => {
     t = Math.min(Math.max(t, f + 1), total);
     setRangeFrom(f);
     setRangeTo(t);
-    setHistory([]);
     setIndex(f);
+    setHistory([f]);
+    setHistPos(0);
     setShowRange(false);
   };
 
@@ -159,7 +165,7 @@ const PopularWordsApp = () => {
 
   return (
     <div
-      className={`min-h-screen ${background.value} flex flex-col items-center justify-center cursor-pointer transition-colors duration-300 overflow-hidden`}
+      className={`min-h-screen ${background.value} flex flex-col items-center justify-center cursor-pointer transition-colors duration-300 overflow-hidden pt-20 pb-32 md:pt-20 md:pb-24`}
       onClick={next}
     >
       {/* Top Controls */}

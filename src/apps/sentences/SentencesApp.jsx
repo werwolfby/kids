@@ -23,7 +23,9 @@ const SentencesApp = () => {
   const [isUpperCase, setIsUpperCase] = useState(false);
   const [shuffle, setShuffle] = useState(false);
   const [showDashes, setShowDashes] = useState(true);
-  const [history, setHistory] = useState([]);
+  // История просмотра (как в браузере): список показанных индексов + позиция.
+  const [history, setHistory] = useState([0]);
+  const [histPos, setHistPos] = useState(0);
   const [showLevels, setShowLevels] = useState(false);
 
   const sentences = levelIndex === null ? allSentences : sentenceLevels[levelIndex].sentences;
@@ -39,14 +41,6 @@ const SentencesApp = () => {
     speak(text, { rate: 0.85, pitch: 1.1 });
   }, []);
 
-  const goTo = useCallback((nextIndex) => {
-    setAnimate(true);
-    setTimeout(() => {
-      setIndex(((nextIndex % total) + total) % total);
-      setAnimate(false);
-    }, 120);
-  }, [total]);
-
   const randomIndex = useCallback(() => {
     if (total <= 1) return 0;
     let r;
@@ -54,32 +48,50 @@ const SentencesApp = () => {
     return r;
   }, [total, index]);
 
+  // Показать предложение по индексу, обновив историю просмотра.
+  const showAt = useCallback((newIndex, hist, pos) => {
+    setAnimate(true);
+    setTimeout(() => {
+      setIndex(newIndex);
+      setHistory(hist);
+      setHistPos(pos);
+      setAnimate(false);
+    }, 120);
+  }, []);
+
+  // Вперёд: если раньше нажимали «назад» — идём вперёд по истории; иначе
+  // показываем новое предложение (случайное или следующее по порядку).
   const next = useCallback(() => {
-    if (shuffle) {
-      setHistory(h => [...h, index]);
-      goTo(randomIndex());
+    if (histPos < history.length - 1) {
+      const pos = histPos + 1;
+      showAt(history[pos], history, pos);
     } else {
-      goTo(index + 1);
+      const newIndex = shuffle ? randomIndex() : (index + 1) % total;
+      const hist = [...history, newIndex];
+      showAt(newIndex, hist, hist.length - 1);
     }
-  }, [shuffle, goTo, index, randomIndex]);
+  }, [histPos, history, shuffle, randomIndex, index, total, showAt]);
 
+  // Назад: всегда возвращает к реально показанному ранее предложению
+  // (и в режиме «по порядку», и «вперемешку»). Нет предыдущего — ничего.
   const prev = useCallback(() => {
-    if (shuffle) {
-      if (history.length === 0) { goTo(randomIndex()); return; }
-      const last = history[history.length - 1];
-      setHistory(h => h.slice(0, -1));
-      goTo(last);
-    } else {
-      goTo(index - 1);
+    if (histPos > 0) {
+      const pos = histPos - 1;
+      showAt(history[pos], history, pos);
     }
-  }, [shuffle, history, goTo, index, randomIndex]);
+  }, [histPos, history, showAt]);
 
-  const toggleShuffle = () => { setHistory([]); setShuffle(s => !s); };
+  const toggleShuffle = () => {
+    setHistory([index]);
+    setHistPos(0);
+    setShuffle(s => !s);
+  };
 
   const chooseLevel = (li) => {
     setLevelIndex(li);
-    setHistory([]);
     setIndex(0);
+    setHistory([0]);
+    setHistPos(0);
     setShowLevels(false);
   };
 
@@ -129,7 +141,7 @@ const SentencesApp = () => {
 
   return (
     <div
-      className={`min-h-screen ${background.value} flex flex-col items-center justify-center cursor-pointer transition-colors duration-300 overflow-hidden`}
+      className={`min-h-screen ${background.value} flex flex-col items-center justify-center cursor-pointer transition-colors duration-300 overflow-hidden pt-20 pb-32 md:pt-20 md:pb-24`}
       onClick={next}
     >
       {/* Top Controls */}
