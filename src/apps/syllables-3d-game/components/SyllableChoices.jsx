@@ -1,4 +1,5 @@
-import { isConsonant } from '../../../shared/utils/russianOrthography';
+import { isConsonant } from '../../../shared/utils/orthography';
+import { useLanguage } from '../../../shared/i18n/LanguageContext';
 
 /**
  * SyllableChoices Component
@@ -6,6 +7,8 @@ import { isConsonant } from '../../../shared/utils/russianOrthography';
  * Shows the two syllable choices at the bottom of the screen
  */
 const SyllableChoices = ({ question, hasAnswered, selectedSide, syllableOrder, isUpperCase, onAnswer }) => {
+  const { lang } = useLanguage();
+
   if (!question) return null;
 
   const formatSyllable = (syllable) => {
@@ -17,7 +20,7 @@ const SyllableChoices = ({ question, hasAnswered, selectedSide, syllableOrder, i
     return (
       <>
         {chars.map((char, i) => (
-          <span key={i} className={isConsonant(char) ? 'text-blue-400' : 'text-red-400'}>
+          <span key={i} className={isConsonant(char, lang) ? 'text-blue-400' : 'text-red-400'}>
             {isUpperCase ? char.toUpperCase() : char}
           </span>
         ))}

@@ -1,20 +1,22 @@
 /**
- * Speech Synthesis Utilities
+ * Озвучка через Web Speech API для русского, белорусского и украинского.
  *
- * This module provides functions for text-to-speech using the Web Speech API
- * with Russian language support.
+ * Белорусских (а часто и украинских) голосов в браузерах обычно нет, поэтому
+ * модуль подбирает ближайший установленный голос: be → uk → ru.
  */
 
+import { getLanguage, DEFAULT_LANGUAGE } from '../i18n/languages.js';
+
 /**
- * Checks if speech synthesis is supported in the browser
- * @returns {boolean} - True if speech synthesis is available
+ * Поддерживается ли синтез речи в браузере
+ * @returns {boolean}
  */
 export const isSpeechSupported = () => {
   return 'speechSynthesis' in window;
 };
 
 /**
- * Cancels any ongoing speech
+ * Отменяет текущую озвучку
  */
 export const cancelSpeech = () => {
   if (isSpeechSupported()) {
@@ -23,15 +25,41 @@ export const cancelSpeech = () => {
 };
 
 /**
- * Speaks the given text in Russian
- * @param {string} text - The text to speak
- * @param {Object} options - Speech options
- * @param {number} options.rate - Speaking rate (default: 0.7)
- * @param {number} options.pitch - Voice pitch (default: 1.2)
- * @param {string} options.lang - Language code (default: 'ru-RU')
- * @param {Function} options.onEnd - Callback when speech ends
- * @param {Function} options.onError - Callback on error
- * @returns {SpeechSynthesisUtterance|null} - The utterance object or null if not supported
+ * Подбирает голос под язык: сначала точное совпадение, потом языки-запасные
+ * (для белорусского — украинский, затем русский).
+ * @param {string} lang - код языка приложения ('ru' | 'be' | 'uk')
+ * @returns {{voice: SpeechSynthesisVoice|null, lang: string}}
+ */
+export const resolveVoice = (lang = DEFAULT_LANGUAGE) => {
+  const language = getLanguage(lang);
+  const candidates = [language.speechLang, ...language.speechFallbacks];
+
+  if (!isSpeechSupported()) {
+    return { voice: null, lang: language.speechLang };
+  }
+
+  const voices = window.speechSynthesis.getVoices() || [];
+  for (const candidate of candidates) {
+    const prefix = candidate.split('-')[0];
+    const voice = voices.find(v => (v.lang || '').toLowerCase().replace('_', '-').startsWith(prefix));
+    if (voice) return { voice, lang: voice.lang || candidate };
+  }
+
+  // Голосов ещё нет (браузер грузит их асинхронно) либо ни один не подошёл —
+  // просто просим нужный язык и надеемся на системный голос.
+  return { voice: null, lang: language.speechLang };
+};
+
+/**
+ * Произносит текст на выбранном языке
+ * @param {string} text - что произнести
+ * @param {Object} options - настройки
+ * @param {number} options.rate - скорость (по умолчанию 0.7)
+ * @param {number} options.pitch - высота голоса (по умолчанию 1.2)
+ * @param {string} options.lang - код языка приложения ('ru' | 'be' | 'uk')
+ * @param {Function} options.onEnd - колбэк по окончании
+ * @param {Function} options.onError - колбэк при ошибке
+ * @returns {SpeechSynthesisUtterance|null}
  */
 export const speak = (text, options = {}) => {
   if (!isSpeechSupported() || !text) {
@@ -41,16 +69,19 @@ export const speak = (text, options = {}) => {
   const {
     rate = 0.7,
     pitch = 1.2,
-    lang = 'ru-RU',
+    lang = DEFAULT_LANGUAGE,
     onEnd = null,
     onError = null
   } = options;
 
-  // Cancel any ongoing speech first
+  // Сначала отменяем всё, что говорится сейчас
   cancelSpeech();
 
+  const { voice, lang: voiceLang } = resolveVoice(lang);
+
   const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = lang;
+  utterance.lang = voiceLang;
+  if (voice) utterance.voice = voice;
   utterance.rate = rate;
   utterance.pitch = pitch;
 
@@ -68,22 +99,23 @@ export const speak = (text, options = {}) => {
 };
 
 /**
- * Speaks a syllable with default Russian settings
- * @param {string} syllable - The syllable to speak
- * @param {Function} onEnd - Optional callback when speech ends
- * @returns {SpeechSynthesisUtterance|null} - The utterance object or null
+ * Произносит слог с настройками «для чтения по слогам»
+ * @param {string} syllable
+ * @param {Function} onEnd
+ * @param {string} lang
+ * @returns {SpeechSynthesisUtterance|null}
  */
-export const speakSyllable = (syllable, onEnd = null) => {
+export const speakSyllable = (syllable, onEnd = null, lang = DEFAULT_LANGUAGE) => {
   return speak(syllable, {
     rate: 0.7,
     pitch: 1.2,
-    lang: 'ru-RU',
+    lang,
     onEnd
   });
 };
 
 /**
- * Pauses speech synthesis
+ * Ставит озвучку на паузу
  */
 export const pauseSpeech = () => {
   if (isSpeechSupported()) {
@@ -92,7 +124,7 @@ export const pauseSpeech = () => {
 };
 
 /**
- * Resumes speech synthesis
+ * Продолжает озвучку
  */
 export const resumeSpeech = () => {
   if (isSpeechSupported()) {
@@ -101,8 +133,8 @@ export const resumeSpeech = () => {
 };
 
 /**
- * Gets the current speech synthesis state
- * @returns {Object} - Object with speaking, pending, and paused states
+ * Текущее состояние синтеза речи
+ * @returns {Object} - { speaking, pending, paused }
  */
 export const getSpeechState = () => {
   if (!isSpeechSupported()) {

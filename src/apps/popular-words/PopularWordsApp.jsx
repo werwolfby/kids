@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { popularWords } from './wordsData';
-import { isVowel } from '../../shared/utils/russianOrthography';
+import { getPopularWords } from './wordsData';
+import { isVowel } from '../../shared/utils/orthography';
+import { splitToWarehouses } from '../../shared/utils/syllableSplit';
+import { useLanguage } from '../../shared/i18n/LanguageContext';
 import { BACKGROUNDS } from '../syllables/constants';
 import { speak, cancelSpeech } from '../../shared/utils/speech';
 import { SoundOnIcon, SoundOffIcon, PaletteIcon, MenuIcon, ShuffleIcon } from '../../shared/components/Icons';
@@ -9,11 +11,14 @@ import { SoundOnIcon, SoundOffIcon, PaletteIcon, MenuIcon, ShuffleIcon } from '.
 /**
  * PopularWordsApp
  *
- * «Учим популярные слова» — reads the 1000 most common Russian words in
- * frequency order, each split into «склады» (max two letters): мо-я, я-ко-рь.
+ * «Учим популярные слова» — reads the 1000 most common words of the chosen
+ * language in frequency order, each split into «склады» (max two letters):
+ * мо-я, я-ко-рь. Правила разбивки зависят от языка (ДЗ, ДЖ, Ў, апостроф).
  */
 const PopularWordsApp = () => {
   const navigate = useNavigate();
+  const { lang, t, fill } = useLanguage();
+  const popularWords = getPopularWords(lang);
   const [index, setIndex] = useState(0);
   const [animate, setAnimate] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(false);
@@ -40,14 +45,15 @@ const PopularWordsApp = () => {
   const background = BACKGROUNDS[bgIndex];
   const isDark = background.value === 'bg-gray-900';
 
-  const dashedWord = popularWords[index];
-  const warehouses = dashedWord.split('-');
-  const plainWord = dashedWord.replace(/-/g, '');
+  // Индекс может «повиснуть» за границей (например, после смены языка).
+  const safeIndex = Math.min(index, total - 1);
+  const plainWord = popularWords[safeIndex];
+  const warehouses = splitToWarehouses(plainWord, lang);
 
-  // Speak the whole word (without dashes)
+  // Speak the whole word (without dashes), in the chosen language
   const speakWord = useCallback((word) => {
-    speak(word, { rate: 0.8, pitch: 1.1 });
-  }, []);
+    speak(word, { rate: 0.8, pitch: 1.1, lang });
+  }, [lang]);
 
   const randomIndex = useCallback(() => {
     const len = hi - lo + 1;
@@ -115,6 +121,15 @@ const PopularWordsApp = () => {
     setShowRange(true);
   };
 
+  // Смена языка — начинаем список заново: слова и их количество другие.
+  useEffect(() => {
+    setIndex(0);
+    setHistory([0]);
+    setHistPos(0);
+    setRangeFrom(0);
+    setRangeTo(total);
+  }, [lang, total]);
+
   // Presets in hundreds as boundaries: 0–100, 100–200, …
   const presets = [];
   for (let s = 0; s < total; s += 100) presets.push([s, Math.min(s + 100, total)]);
@@ -150,13 +165,14 @@ const PopularWordsApp = () => {
   }, [next, prev, navigate, showRange]);
 
   // Consonants blue, vowels red (as in the syllables app).
-  const charColor = (ch) => isVowel(ch)
+  const charColor = (ch) => isVowel(ch, lang)
     ? (isDark ? 'text-red-400' : 'text-red-600')
     : (isDark ? 'text-blue-400' : 'text-blue-600');
   const fmt = (s) => (isUpperCase ? s.toUpperCase() : s);
 
   // Scale font down for longer words so they stay on one line
-  const displayLen = dashedWord.length;
+  // (длина с дефисами: столько знаков реально окажется на экране)
+  const displayLen = plainWord.length + warehouses.length - 1;
   const fontVw = Math.max(7, Math.min(20, Math.floor(170 / displayLen)));
 
   const controlBtn = `rounded-full px-3 py-2 md:px-6 md:py-3 shadow-lg text-base md:text-xl font-bold transition ${
@@ -174,7 +190,7 @@ const PopularWordsApp = () => {
         onClick={(e) => e.stopPropagation()}
       >
         <div className={`bg-opacity-80 ${isDark ? 'bg-white text-gray-900' : 'bg-gray-900 text-white'} rounded-full px-3 py-2 md:px-6 md:py-3 shadow-lg text-lg md:text-2xl font-bold`}>
-          {index + 1} / {total}
+          {safeIndex + 1} / {total}
         </div>
 
         {/* Диапазон слов */}
@@ -185,12 +201,12 @@ const PopularWordsApp = () => {
               ? (isDark ? 'bg-white text-gray-700 hover:bg-gray-100' : 'bg-gray-900 text-white hover:bg-gray-800')
               : 'bg-green-500 text-white'
           }`}
-          title="Выбрать диапазон слов"
+          title={t.words.rangePick}
         >
           {rangeFrom}–{rangeTo}
         </button>
 
-        <button onClick={() => setIsUpperCase(!isUpperCase)} className={controlBtn} title="Переключить регистр">
+        <button onClick={() => setIsUpperCase(!isUpperCase)} className={controlBtn} title={t.display.toggleCase}>
           {isUpperCase ? 'АБ' : 'аб'}
         </button>
 
@@ -199,7 +215,7 @@ const PopularWordsApp = () => {
           className={`rounded-full px-3 py-2 md:px-6 md:py-3 shadow-lg text-base md:text-xl font-bold transition ${
             soundEnabled ? 'bg-green-500 text-white' : isDark ? 'bg-white text-gray-700' : 'bg-gray-900 text-white'
           }`}
-          title={soundEnabled ? 'Выключить звук' : 'Включить звук'}
+          title={soundEnabled ? t.display.soundOff : t.display.soundOn}
         >
           {soundEnabled ? <SoundOnIcon /> : <SoundOffIcon />}
         </button>
@@ -210,7 +226,7 @@ const PopularWordsApp = () => {
           className={`rounded-full px-3 py-2 md:px-6 md:py-3 shadow-lg text-base md:text-xl font-bold transition ${
             shuffle ? 'bg-green-500 text-white' : isDark ? 'bg-white text-gray-700' : 'bg-gray-900 text-white'
           }`}
-          title={shuffle ? 'Вперемешку (нажми — по порядку)' : 'По порядку (нажми — вперемешку)'}
+          title={shuffle ? t.common.shuffleOn : t.common.shuffleOff}
         >
           <ShuffleIcon width={22} height={22} />
         </button>
@@ -221,16 +237,16 @@ const PopularWordsApp = () => {
           className={`rounded-full px-3 py-2 md:px-6 md:py-3 shadow-lg text-lg md:text-2xl font-bold leading-none transition ${
             showDashes ? 'bg-green-500 text-white' : isDark ? 'bg-white text-gray-700' : 'bg-gray-900 text-white'
           }`}
-          title={showDashes ? 'Скрыть дефисы' : 'Показать дефисы'}
+          title={showDashes ? t.common.dashesHide : t.common.dashesShow}
         >
           а‑б
         </button>
 
-        <button onClick={() => setBgIndex((bgIndex + 1) % BACKGROUNDS.length)} className={controlBtn} title="Сменить фон">
+        <button onClick={() => setBgIndex((bgIndex + 1) % BACKGROUNDS.length)} className={controlBtn} title={t.display.changeBg}>
           <PaletteIcon />
         </button>
 
-        <button onClick={() => navigate('/')} className={controlBtn} title="В меню">
+        <button onClick={() => navigate('/')} className={controlBtn} title={t.common.toMenu}>
           <MenuIcon />
         </button>
       </div>
@@ -241,7 +257,7 @@ const PopularWordsApp = () => {
         className={`absolute z-10 left-3 bottom-20 md:left-6 md:bottom-auto md:top-1/2 md:-translate-y-1/2 rounded-full w-12 h-12 md:w-20 md:h-20 shadow-lg text-3xl md:text-5xl font-bold transition ${
           isDark ? 'bg-white/80 text-gray-800 hover:bg-white' : 'bg-gray-900/70 text-white hover:bg-gray-900'
         }`}
-        title="Предыдущее слово"
+        title={t.words.prev}
       >
         ‹
       </button>
@@ -250,7 +266,7 @@ const PopularWordsApp = () => {
         className={`absolute z-10 right-3 bottom-20 md:right-6 md:bottom-auto md:top-1/2 md:-translate-y-1/2 rounded-full w-12 h-12 md:w-20 md:h-20 shadow-lg text-3xl md:text-5xl font-bold transition ${
           isDark ? 'bg-white/80 text-gray-800 hover:bg-white' : 'bg-gray-900/70 text-white hover:bg-gray-900'
         }`}
-        title="Следующее слово"
+        title={t.words.next}
       >
         ›
       </button>
@@ -271,7 +287,7 @@ const PopularWordsApp = () => {
             {warehouses.map((wh, i) => (
               <span key={i} className="flex items-baseline">
                 {i > 0 && showDashes && (
-                  <span className={`${isDark ? 'text-gray-600' : 'text-gray-300'} px-[0.05em]`}>-</span>
+                  <span className={`${isDark ? 'text-gray-600' : 'text-gray-300'} text-[0.7em] -mx-[0.02em]`}>-</span>
                 )}
                 {wh.split('').map((ch, ci) => (
                   <span key={ci} className={charColor(ch)}>{fmt(ch)}</span>
@@ -289,7 +305,7 @@ const PopularWordsApp = () => {
         } bg-opacity-80`}
         onClick={(e) => e.stopPropagation()}
       >
-        ПРОБЕЛ или экран — дальше · ← → листать
+        {t.common.navHint}
       </div>
 
       {/* Range picker panel */}
@@ -303,7 +319,7 @@ const PopularWordsApp = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="text-2xl md:text-3xl font-bold text-purple-600 text-center mb-2">
-              Диапазон слов
+              {t.words.rangeTitle}
             </h2>
 
             {/* Live readout */}
@@ -311,7 +327,7 @@ const PopularWordsApp = () => {
               <div className="text-4xl font-extrabold text-gray-800">
                 {draftFrom} – {draftTo}
               </div>
-              <div className="text-gray-500 text-lg">{draftTo - draftFrom} слов из {total}</div>
+              <div className="text-gray-500 text-lg">{fill(t.words.count, { n: draftTo - draftFrom, total })}</div>
             </div>
 
             {/* Dual-thumb slider */}
@@ -332,7 +348,7 @@ const PopularWordsApp = () => {
                 onChange={(e) => setDraftFrom(Math.min(Number(e.target.value), draftTo - 1))}
                 className="dual-range"
                 style={{ zIndex: draftFrom > total / 2 ? 5 : 3 }}
-                aria-label="Начало диапазона"
+                aria-label={t.words.rangeFrom}
               />
               <input
                 type="range"
@@ -343,7 +359,7 @@ const PopularWordsApp = () => {
                 onChange={(e) => setDraftTo(Math.max(Number(e.target.value), draftFrom + 1))}
                 className="dual-range"
                 style={{ zIndex: 4 }}
-                aria-label="Конец диапазона"
+                aria-label={t.words.rangeTo}
               />
             </div>
 
@@ -353,7 +369,7 @@ const PopularWordsApp = () => {
                 onClick={() => applyRangeValues(0, total)}
                 className="px-4 py-2 rounded-lg text-base font-bold bg-purple-100 text-purple-700 hover:bg-purple-200 transition"
               >
-                Все {total}
+                {fill(t.words.allWords, { total })}
               </button>
               {presets.map(([f, t]) => (
                 <button
@@ -372,13 +388,13 @@ const PopularWordsApp = () => {
                 onClick={() => setShowRange(false)}
                 className="flex-1 py-3 rounded-xl text-lg font-bold bg-gray-200 text-gray-700 hover:bg-gray-300 transition"
               >
-                Отмена
+                {t.words.cancel}
               </button>
               <button
                 onClick={applyDraft}
                 className="flex-1 py-3 rounded-xl text-lg font-bold bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:shadow-lg transition"
               >
-                Применить
+                {t.words.apply}
               </button>
             </div>
           </div>

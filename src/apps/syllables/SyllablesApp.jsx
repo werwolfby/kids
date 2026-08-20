@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import SyllablesMenu from './SyllablesMenu';
 import SyllablesDisplay from './SyllablesDisplay';
 import Game3D from '../syllables-3d-game/Game3D';
 import { MODE, SYLLABLE_ORDER, BACKGROUNDS } from './constants';
-import { consonants, vowels } from '../../shared/utils/russianOrthography';
+import { getConsonants, getVowels } from '../../shared/utils/orthography';
+import { useLanguage } from '../../shared/i18n/LanguageContext';
 import {
   generateRandomSyllable,
   generateDifferentSyllable
@@ -14,12 +16,17 @@ import { speakSyllable } from '../../shared/utils/speech';
  * SyllablesApp Component
  *
  * Main application component that manages:
- * - Syllable generation and display
+ * - Syllable generation and display (in the language chosen on the home page)
  * - Mode switching (random, selected consonant, 3D game)
  * - Sound, background, and case settings
  * - Keyboard navigation
  */
 const SyllablesApp = () => {
+  const navigate = useNavigate();
+  const { lang } = useLanguage();
+  const consonants = getConsonants(lang);
+  const vowels = getVowels(lang);
+
   const [mode, setMode] = useState(MODE.RANDOM);
   // Consonants/vowels the child is practising. Empty = all of them.
   const [selectedConsonants, setSelectedConsonants] = useState([]);
@@ -37,6 +44,14 @@ const SyllablesApp = () => {
   // Show the чистоговорка / sample word under the card (can distract some kids)
   const [showHints, setShowHints] = useState(true);
 
+  // Смена языка меняет алфавит, поэтому выбранные буквы сбрасываем:
+  // иначе остались бы буквы, которых в новом языке нет.
+  useEffect(() => {
+    setSelectedConsonants([]);
+    setSelectedVowels([]);
+    setShowMenu(true);
+  }, [lang]);
+
   // Toggles a letter in/out of a selection set
   const toggleInSet = (setter) => (letter) => {
     setter(prev =>
@@ -50,7 +65,8 @@ const SyllablesApp = () => {
   const syllableOptions = {
     consonants: selectedConsonants,
     vowels: selectedVowels,
-    softSign
+    softSign,
+    lang
   };
 
   /**
@@ -93,7 +109,7 @@ const SyllablesApp = () => {
       // Speak current syllable, then show next
       speakSyllable(currentSyllable, () => {
         showNextSyllable();
-      });
+      }, lang);
     } else {
       // Just show next syllable immediately
       showNextSyllable();
@@ -116,7 +132,7 @@ const SyllablesApp = () => {
 
     window.addEventListener('keydown', handleKeyPress);
     return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [showMenu, mode, selectedConsonants, selectedVowels, softSign, soundEnabled, currentSyllable, syllableOrder]);
+  }, [showMenu, mode, selectedConsonants, selectedVowels, softSign, soundEnabled, currentSyllable, syllableOrder, lang]);
 
   // Handle 3D game mode
   if (mode === MODE.GAME_3D && !showMenu) {
@@ -149,6 +165,7 @@ const SyllablesApp = () => {
         softSign={softSign}
         onToggleSoftSign={() => setSoftSign(prev => !prev)}
         onStartMode={startMode}
+        onGoHome={() => navigate('/')}
       />
     );
   }

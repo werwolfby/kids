@@ -6,6 +6,7 @@ import Instructions from './components/Instructions';
 import SyllableChoices from './components/SyllableChoices';
 import { generateRandomSyllable } from '../../shared/utils/syllables';
 import { speakSyllable } from '../../shared/utils/speech';
+import { useLanguage } from '../../shared/i18n/LanguageContext';
 import { createCar } from './scene/createCar';
 import { createTree } from './scene/createTree';
 import { createBuilding } from './scene/createBuilding';
@@ -22,6 +23,7 @@ import { createFlower } from './scene/createFlower';
  * 3D racing game where players choose the correct syllable to avoid obstacles
  */
 const Game3D = ({ onBack, consonants, vowels, softSign = false, syllableOrder, isUpperCase }) => {
+  const { lang } = useLanguage();
   const mountRef = useRef(null);
   const sceneRef = useRef(null);
   const cameraRef = useRef(null);
@@ -47,7 +49,7 @@ const Game3D = ({ onBack, consonants, vowels, softSign = false, syllableOrder, i
   // Generate syllables using the shared generator so orthography, mixed order,
   // and the soft sign all behave the same as in the flashcard mode.
   const generateSyllable = () =>
-    generateRandomSyllable(syllableOrder, { consonants, vowels, softSign });
+    generateRandomSyllable(syllableOrder, { consonants, vowels, softSign, lang });
 
   const generateWrongSyllable = (correctSyllable) => {
     let wrongSyllable;
@@ -255,7 +257,7 @@ const Game3D = ({ onBack, consonants, vowels, softSign = false, syllableOrder, i
     // Start with first question
     const firstQuestion = createNewQuestion();
     setCurrentQuestion(firstQuestion);
-    speakSyllable(firstQuestion.correctSyllable);
+    speakSyllable(firstQuestion.correctSyllable, null, lang);
 
     // Animation loop
     const animate = () => {
@@ -420,7 +422,7 @@ const Game3D = ({ onBack, consonants, vowels, softSign = false, syllableOrder, i
               } else {
                 const newQuestion = createNewQuestion();
                 setCurrentQuestion(newQuestion);
-                speakSyllable(newQuestion.correctSyllable);
+                speakSyllable(newQuestion.correctSyllable, null, lang);
                 setHasAnswered(false);
                 setSelectedSide(null);
               }
@@ -541,7 +543,7 @@ const Game3D = ({ onBack, consonants, vowels, softSign = false, syllableOrder, i
       } else if (e.key === 'ArrowRight' && !hasAnswered) {
         handleAnswer('right');
       } else if (e.key === 'ArrowUp' && currentQuestion) {
-        speakSyllable(currentQuestion.correctSyllable);
+        speakSyllable(currentQuestion.correctSyllable, null, lang);
       } else if (e.key === 'Escape') {
         onBack();
       }

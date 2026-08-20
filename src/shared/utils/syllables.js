@@ -1,24 +1,27 @@
 /**
- * Syllable Generation Utilities
+ * Генерация слогов с учётом языка.
  *
- * This module provides functions for generating Russian syllables
- * with proper validation according to orthography rules.
+ * Пул слогов перечисляется целиком (а не подбирается «наугад с отбраковкой»),
+ * поэтому генерация всегда завершается и остаётся корректной даже для очень
+ * узкого набора букв.
  */
 
 import {
-  consonants,
-  vowels,
+  getConsonants,
+  getVowels,
+  getInitialVowels,
+  getSoftSign,
   isValidSyllable,
-  canTakeSoftSign,
-  SOFT_SIGN
-} from './russianOrthography.js';
+  canTakeSoftSign
+} from './orthography.js';
+import { DEFAULT_LANGUAGE } from '../i18n/languages.js';
 
 /**
- * Resolves the syllable order for a single syllable.
- * 'mixed' randomly becomes 'cv' or 'vc' on each call, so a mixed session
- * produces an unpredictable blend of both orders.
- * @param {string} order - 'cv', 'vc', or 'mixed'
- * @returns {string} - 'cv' or 'vc'
+ * Определяет порядок для одного слога.
+ * 'mixed' на каждом вызове случайно становится 'cv' или 'vc', поэтому
+ * смешанный режим даёт непредсказуемую смесь обоих порядков.
+ * @param {string} order - 'cv', 'vc' или 'mixed'
+ * @returns {string} - 'cv' или 'vc'
  */
 const resolveOrder = (order) => {
   if (order === 'mixed') {
@@ -27,32 +30,33 @@ const resolveOrder = (order) => {
   return order;
 };
 
-// An empty/missing selection means "all of them".
+// Пустой/отсутствующий выбор означает «все буквы».
 const orAll = (selected, all) => (selected && selected.length > 0 ? selected : all);
 
 /**
- * Builds the full list of syllables allowed by the given constraints.
- * Enumerating the pool (rather than reject-sampling) keeps generation correct
- * and guarantees termination even for tiny selections.
- * @param {string} order - resolved 'cv' or 'vc'
- * @param {object} options - { consonants, vowels, softSign }
- * @returns {string[]} - Every valid syllable for these constraints
+ * Строит полный список слогов, допустимых при заданных ограничениях.
+ * @param {string} order - 'cv' или 'vc'
+ * @param {object} options - { consonants, vowels, softSign, lang }
+ * @returns {string[]}
  */
-const buildSyllablePool = (order, { consonants: ac, vowels: av, softSign = false } = {}) => {
-  const cons = orAll(ac, consonants);
-  const vows = orAll(av, vowels);
+const buildSyllablePool = (order, { consonants: ac, vowels: av, softSign = false, lang = DEFAULT_LANGUAGE } = {}) => {
+  const cons = orAll(ac, getConsonants(lang));
   const pool = [];
 
   if (order === 'cv') {
+    const vows = orAll(av, getVowels(lang));
     for (const c of cons) {
       for (const v of vows) {
-        if (isValidSyllable(c, v)) pool.push(c + v);
+        if (isValidSyllable(c, v, lang)) pool.push(c + v);
       }
-      // Soft sign sits in the vowel slot but only after a consonant (CV only).
-      if (softSign && canTakeSoftSign(c)) pool.push(c + SOFT_SIGN);
+      // Мягкий знак стоит на месте гласной, но только после согласной (только CV).
+      if (softSign && canTakeSoftSign(c, lang)) pool.push(c + getSoftSign(lang));
     }
   } else {
-    // VC: vowel first, then consonant — every combination is valid, no soft sign.
+    // VC: сначала гласная, потом согласная. Гласные, которые не начинают слог
+    // (русское/белорусское Ы, украинское И), в этом порядке не участвуют.
+    const initial = getInitialVowels(lang);
+    const vows = orAll(av && av.filter(v => initial.includes(v)), initial);
     for (const v of vows) {
       for (const c of cons) {
         pool.push(v + c);
@@ -64,34 +68,34 @@ const buildSyllablePool = (order, { consonants: ac, vowels: av, softSign = false
 };
 
 /**
- * Generates a random syllable
- * @param {string} order - 'cv', 'vc', or 'mixed'
- * @param {object} options - { consonants?, vowels?, softSign? } (empty arrays = all)
- * @returns {string} - A random syllable
+ * Генерирует случайный слог.
+ * @param {string} order - 'cv', 'vc' или 'mixed'
+ * @param {object} options - { consonants?, vowels?, softSign?, lang? } (пустые массивы = все)
+ * @returns {string}
  */
 export const generateRandomSyllable = (order = 'cv', options = {}) => {
   order = resolveOrder(order);
   let pool = buildSyllablePool(order, options);
 
-  // The selection can rule out every syllable (e.g. only Ж + only Ы in CV order).
-  // Fall back to ignoring the letter filters so we always show something valid.
+  // Выбор может исключить вообще все слоги (например, только Ж и только Ы в CV).
+  // Тогда игнорируем фильтры по буквам, чтобы всегда показать что-то валидное.
   if (pool.length === 0) {
-    pool = buildSyllablePool(order, { softSign: options.softSign });
+    pool = buildSyllablePool(order, { softSign: options.softSign, lang: options.lang });
   }
 
   return pool[Math.floor(Math.random() * pool.length)];
 };
 
 /**
- * Generates a syllable different from the given one
- * @param {string} currentSyllable - The syllable to avoid
- * @param {string} order - 'cv', 'vc', or 'mixed'
- * @param {object} options - { consonants?, vowels?, softSign? }
- * @returns {string} - A new syllable, or the same one if only one is possible
+ * Генерирует слог, отличный от заданного.
+ * @param {string} currentSyllable
+ * @param {string} order - 'cv', 'vc' или 'mixed'
+ * @param {object} options - { consonants?, vowels?, softSign?, lang? }
+ * @returns {string}
  */
 export const generateDifferentSyllable = (currentSyllable, order = 'cv', options = {}) => {
   let newSyllable = currentSyllable;
-  // Bounded retry: if the constraints allow only one syllable, give up gracefully.
+  // Ограниченное число попыток: если возможен только один слог — сдаёмся мягко.
   for (let i = 0; i < 25; i++) {
     newSyllable = generateRandomSyllable(order, options);
     if (newSyllable !== currentSyllable) return newSyllable;
@@ -100,10 +104,10 @@ export const generateDifferentSyllable = (currentSyllable, order = 'cv', options
 };
 
 /**
- * Formats a syllable with case transformation
- * @param {string} syllable - The syllable to format
- * @param {boolean} isUpperCase - Whether to use uppercase
- * @returns {string} - The formatted syllable
+ * Приводит слог к нужному регистру.
+ * @param {string} syllable
+ * @param {boolean} isUpperCase
+ * @returns {string}
  */
 export const formatSyllable = (syllable, isUpperCase = true) => {
   if (!syllable || syllable.length < 2) return '';

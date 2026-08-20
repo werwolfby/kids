@@ -2,114 +2,145 @@
 
 ## Project Context
 
-This is a collection of educational web applications for children, primarily focused on Russian language learning. The project is designed to be simple, self-contained, and easy to use without requiring build tools or complex setup.
+This is a collection of educational web applications for children learning to read
+in **Russian, Belarusian and Ukrainian**. The language is chosen on the home page
+and drives everything: the alphabet, the orthography rules, the words and
+sentences, the UI strings and the text-to-speech voice.
 
 ## Architecture Principles
 
-### 1. Self-Contained Apps
-- Each app is a standalone HTML file with all code embedded
-- No external dependencies beyond CDN-loaded libraries
-- Can be opened directly in a browser without a server
-- No build process or compilation required
+### 1. One Vite app, several small apps inside it
+- `src/apps/<name>/` — one directory per learning app
+- `src/shared/` — everything reused: i18n, orthography, syllable utils, icons
+- Hash routing (`HashRouter`), so the build works from any static host
+- `npm run dev` to develop, `npm run build` to produce `dist/`
 
 ### 2. Technology Stack
-- **React 18**: UI framework (loaded via CDN)
-- **Tailwind CSS**: Styling (loaded via CDN)
-- **Babel Standalone**: JSX transformation in the browser
+- **React 18** + **React Router** (hash routing)
+- **Tailwind CSS**: Styling
+- **Vite**: dev server and build
+- **three.js**: the 3D syllable game
 - **Web Speech API**: Text-to-speech for audio features
 
 ### 3. Target Audience
-- Young children learning Russian
+- Young children learning to read in Russian, Belarusian or Ukrainian
 - Parents/teachers supervising learning
 - Simple, intuitive interfaces with large, clear visuals
 
+## Multi-language architecture (ru / be / uk)
+
+The app teaches reading in **three languages**: Russian (default), Belarusian and
+Ukrainian. The language is picked on the home page and lives in a React context.
+
+### Where the language lives
+
+- `src/shared/i18n/languages.js` — the list of languages: code, native name, flag,
+  Web Speech code and fallback voices, `<html lang>` value.
+- `src/shared/i18n/LanguageContext.jsx` — `<LanguageProvider>` + `useLanguage()`.
+  Returns `{ lang, setLang, language, t, fill }`. Persists to `localStorage`
+  (`kids-apps-language`) and keeps `document.documentElement.lang` in sync.
+- `src/shared/i18n/ui.js` — every visible UI string, in all three languages.
+  Same key tree per language; `fill('Выбрано: {n}', { n })` for placeholders.
+- `src/shared/i18n/LanguageSwitcher.jsx` — the three-way picker on the home page.
+
+**Any new user-visible string goes into `ui.js` in all three languages** — never
+hardcode text in a component.
+
+### Language-aware utilities
+
+Every one of these takes a `lang` code (`'ru' | 'be' | 'uk'`) and falls back to
+the default language for anything unknown:
+
+- `src/shared/utils/orthography.js` — the alphabets and orthography rules:
+  `getConsonants`, `getVowels`, `getInitialVowels`, `getSoftSign`, `isConsonant`,
+  `isVowel`, `isValidSyllable`, `canTakeSoftSign`.
+- `src/shared/utils/syllables.js` — syllable generation (`{ …, lang }` in options).
+- `src/shared/utils/syllableSplit.js` — `splitToWarehouses(word, lang)`.
+- `src/shared/utils/speech.js` — `speak(text, { lang })`, `speakSyllable(s, onEnd, lang)`.
+
+### Orthography rules per language
+
+**Russian** (20 consonants, 10 vowels, Ь + Ъ):
+1. ЖИ, ШИ (never ЖЫ, ШЫ)
+2. ЧА, ЩА (never ЧЯ, ЩЯ)
+3. ЧУ, ЩУ (never ЧЮ, ЩЮ)
+4. After Ж, Ш, Ч, Щ, Ц never Э
+5. Ь not after Г, К, Х, Ц
+
+**Belarusian** (19 consonants — no Щ; І instead of И; Ў never opens a syllable):
+1. Ж, Ш, Ч, Р are always hard: ЖЫ/ШЫ/ЧЫ/РЫ, ЖЭ/ШЭ/ЧЭ/РЭ, never ЖІ/ШЯ/ЧЮ/РЕ
+2. Дзеканне/цеканне: no soft Д or Т — ДЗ and Ц instead (дзень, ціха)
+3. Г, К, Х are soft only before І and Е; never with Я, Ё, Ю, Ы
+4. Ь only after З, Л, Н, С, Ц
+5. ДЗ and ДЖ are one sound and are never split across «склады»
+
+**Ukrainian** (20 consonants — Ґ excluded as too rare; І, Ї, Є; no Ы, Э, Ё, Ъ):
+1. Ж, Ч, Ш, Щ are always hard: ЖИ/ЧИ/ШИ/ЩИ and ЖІ/ЧІ/ШІ/ЩІ, never ЖЯ/ЧЮ/ШЄ
+2. Ї never follows a consonant (їжак, мої, з'їв)
+3. Г, К, Х are hard: no ГЯ, КЮ, ХЄ
+4. Є after a consonant only in Л, Н, Т (синє, останнє, життєвий); after a labial
+   it needs an apostrophe (б'є, п'є)
+5. Ь only after Д, З, Л, Н, С, Т, Ц
+6. ДЗ and ДЖ are one sound and are never split
+
+### Per-language content
+
+Each content module holds one map/list per language and exposes a `lang`-aware
+getter:
+
+- `src/apps/syllables/chistogovorki.js` — `getChistogovorka(syllable, lang)`
+- `src/apps/syllables/words.js` — `getWordForSyllable(syllable, lang)`
+- `src/apps/popular-words/wordsData.{ru,be,uk}.js` + `wordsData.js`
+  (`getPopularWords(lang)`) — 1000 words each, stored as **whole words**; the app
+  splits them at render time with the language-aware splitter
+- `src/apps/sentences/sentencesData.{ru,be,uk}.js` + `sentencesData.js`
+  (`getSentenceLevels(lang)`, `getAllSentences(lang)`) — 4 levels × 100 sentences
+
+Sentences and words are stored lowercase, without punctuation.
+
 ## Current Apps
 
-### Syllables App (`syllables-app/syllables-app.html`)
+### Syllables (`src/apps/syllables/`)
 
-**Purpose**: Teach Russian syllables by combining consonants and vowels
+Flashcards of single syllables plus a 3D driving game
+(`src/apps/syllables-3d-game/`). Users choose CV / VC / mixed order, which letters
+to practise (empty selection = all), and whether to include soft-sign syllables.
+Under the card the app shows a чистоговорка, or a sample word with the syllable
+highlighted.
 
-**Key Components**:
-- `RussianSyllablesApp`: Main React component
-- `consonants`: Array of Russian consonant letters (20 letters)
-- `vowels`: Array of Russian vowel letters (10 letters)
-- `isValidSyllable()`: Validates syllables according to Russian orthography rules
+### Popular Words (`src/apps/popular-words/`)
 
-**Russian Orthography Rules Implemented**:
-1. ЖИ, ШИ (never ЖЫ, ШЫ) - after Ж, Ш use И not Ы
-2. ЧА, ЩА (never ЧЯ, ЩЯ) - after Ч, Щ use А not Я
-3. ЧУ, ЩУ (never ЧЮ, ЩЮ) - after Ч, Щ use У not Ю
-4. After Ж, Ш, Ч, Щ, Ц never use Э
+The 1000 most frequent words of the chosen language, split into «склады»
+(max two letters, Zaitsev-style). Has a range picker (0–100, 100–200, …), a
+shuffle/in-order toggle and browser-like back/forward history.
 
-**Features**:
-- Two modes: random syllables or filtered by consonant
-- Audio playback using Web Speech API (Russian language)
-- Multiple background colors for different lighting conditions
-- Uppercase/lowercase toggle
-- Counter to track progress
-- Keyboard shortcuts (Space = next, Escape = menu)
+### Sentences (`src/apps/sentences/`)
 
-**State Management**:
-- `mode`: 'random' or 'selected'
-- `selectedConsonant`: Current consonant filter
-- `currentSyllable`: Currently displayed syllable
-- `count`: Number of syllables shown
-- `soundEnabled`: Audio on/off
-- `bgIndex`: Current background theme
-- `isUpperCase`: Letter case toggle
+Graded sentences over four levels, split into «склады» the same way.
 
-**Audio Behavior**:
-- First syllable shows without audio
-- Subsequent syllables: speaks current syllable, then shows next
-- Uses `speechSynthesis.cancel()` to prevent overlapping speech
-- Russian language (ru-RU), slower rate (0.7), higher pitch (1.2)
+### Legacy standalone app (`syllables-app/syllables-app.html`)
+
+The original single-file version, kept for reference. It is **not** part of the
+Vite app and does not have the language picker.
 
 ## Development Guidelines
 
 ### Adding New Apps
 
-1. **Create a new directory** under `Kids/`:
-   ```
-   Kids/
-   ├── new-app-name/
-   │   └── new-app-name.html
-   ```
+1. Create a directory under `src/apps/<app-name>/` with the app component.
+2. Register a route in `src/App.jsx` and add a card to the home page — its title
+   and description come from `t.apps.*` in `src/shared/i18n/ui.js`.
+3. Take the language from `useLanguage()` and pass it to every shared util
+   (orthography, syllable split, speech) — never assume Russian.
+4. Put new UI strings in `ui.js` for **all three** languages.
+5. If the app has language content (words, sentences, …), keep one file per
+   language plus an index module with a `lang`-aware getter, as the existing apps do.
+6. Reuse the shared pieces: `BACKGROUNDS` from `src/apps/syllables/constants.js`,
+   icons from `src/shared/components/Icons.jsx`, speech from
+   `src/shared/utils/speech.js`.
 
-2. **Follow the self-contained pattern**:
-   - Single HTML file with embedded CSS and JavaScript
-   - Use CDN links for dependencies
-   - Include React, Tailwind CSS via CDN
-   - Use Babel Standalone for JSX
-
-3. **Standard template structure**:
-   ```html
-   <!DOCTYPE html>
-   <html lang="ru">
-   <head>
-       <meta charset="UTF-8">
-       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-       <title>App Title</title>
-       <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-       <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-       <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-       <script src="https://cdn.tailwindcss.com"></script>
-   </head>
-   <body>
-       <div id="root"></div>
-       <script type="text/babel">
-           // React code here
-       </script>
-   </body>
-   </html>
-   ```
-
-4. **Design considerations**:
-   - Large, clear visuals suitable for children
-   - Simple, intuitive interactions (click, spacebar)
-   - Colorful, engaging UI
-   - Responsive design (mobile and desktop)
-   - Keyboard shortcuts for ease of use
-   - Audio support where appropriate
+Keep the standard controls consistent across apps: counter, case toggle (АБ/аб),
+sound, background, menu; SPACE / click for next, ← → to page, ESC to leave.
 
 ### Code Style
 
@@ -121,6 +152,9 @@ This is a collection of educational web applications for children, primarily foc
 
 ### Testing
 
+- `npm run dev` and check the app in the browser; `npm run build` must pass
+- Test all three languages: letters, syllables, words and sentences change with
+  the picker on the home page
 - Test in multiple browsers (Chrome, Firefox, Safari)
 - Test on mobile devices (responsive design)
 - Test keyboard navigation
@@ -130,20 +164,27 @@ This is a collection of educational web applications for children, primarily foc
 ## Future Considerations
 
 As more apps are added:
-- Consider shared components or utilities
-- May need a simple index page to list all apps
-- Could add common UI patterns (menu, settings)
-- Might want to localize for other languages
+- Keep extracting shared components and utilities into `src/shared/`
+- Could add common UI patterns (settings panel shared between apps)
+- More languages: add an entry to `languages.js`, an alphabet to
+  `orthography.js`, a branch to `ui.js`, and content files per app
 - Consider offline functionality (Service Workers)
 
-## Russian Language Notes
+## Language Notes
 
-When working with Russian language features:
-- Use lang="ru" in HTML tag
-- Use Cyrillic alphabet properly
-- Respect Russian orthography and grammar rules
-- For speech synthesis, use 'ru-RU' language code
-- Be aware of hard/soft consonants, vowel reduction, etc.
+- `<html lang>` is set from the chosen language by `LanguageProvider` — don't
+  hardcode it.
+- Never assume the Russian alphabet: get letters from
+  `src/shared/utils/orthography.js`, not from a literal list.
+- Respect each language's orthography — the rules above are already encoded in
+  `orthography.js`; extend that file rather than special-casing in components.
+- Speech: `ru-RU`, `be-BY`, `uk-UA`. Belarusian (and often Ukrainian) voices are
+  not installed on most systems, so `speech.js` picks the closest available voice
+  (be → uk → ru).
+- Belarusian spelling gotchas: аканне/яканне (вада, вясна), дзеканне/цеканне
+  (дзень, ціха), Ў after a vowel (воўк, аўтобус), apostrophe instead of Ъ.
+- Ukrainian spelling gotchas: apostrophe before Я/Ю/Є/Ї after a labial (м'яч,
+  п'ять), И never starts a word, Ї only at the start or after a vowel.
 
 ## Git Workflow
 

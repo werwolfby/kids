@@ -1,64 +1,83 @@
 # Kids Learning Apps
 
-A collection of educational web applications for children, focusing on Russian language learning.
+A collection of educational web applications for children learning to read in
+**Russian, Belarusian and Ukrainian**.
 
-## Overview
+## Language selection
 
-This repository contains multiple standalone web applications designed to help kids learn fundamental concepts in an interactive and engaging way. Each app is self-contained and can be opened directly in a web browser.
+The language is chosen on the home page — Русский (default), Беларуская,
+Українська — and everything follows from it:
 
-## Current Applications
+- **Letters**: each language gets its own alphabet (Belarusian has І and Ў but no
+  И/Щ/Ъ; Ukrainian has І, Ї, Є but no Ы/Э/Ё/Ъ).
+- **Orthography**: only syllables that actually exist are shown — ЖИ/ШИ and ЧА/ЩА
+  in Russian, hard Ж/Ш/Ч/Р and дзеканне/цеканне in Belarusian, hard Ж/Ч/Ш/Щ and
+  "Ї never after a consonant" in Ukrainian.
+- **Word splitting**: the ДЗ/ДЖ digraphs stay together, Ў and the apostrophe are
+  handled correctly.
+- **Content**: separate word lists, sentences, чистоговорки and sample words.
+- **Speech**: `ru-RU` / `be-BY` / `uk-UA`, falling back to the closest installed
+  voice (be → uk → ru), because Belarusian voices are rarely installed.
 
-### Syllables App (`syllables-app/`)
+The choice is stored in `localStorage`, so it survives a reload.
 
-An interactive application for teaching Russian syllables to children.
+## Applications
 
-**Features:**
-- **Random mode**: Practice with randomly generated syllables
-- **Letter mode**: Focus on syllables starting with a specific consonant
-- **Audio support**: Hear syllables pronounced using text-to-speech
-- **Customizable display**: Toggle between uppercase/lowercase, change backgrounds
-- **Russian spelling rules**: Only shows valid syllable combinations according to Russian orthography rules
+### Слоги / Склады (`src/apps/syllables/`)
 
-**How to use:**
-1. Open `syllables-app/syllables-app.html` in your web browser
-2. Choose random mode or select a specific consonant letter
-3. Click anywhere on the screen or press SPACE to see the next syllable
-4. Use the control buttons in the top-right corner to:
-   - Toggle sound on/off (🔊/🔇)
-   - Switch between uppercase and lowercase (АБ/аб)
-   - Change background color (🎨)
-   - Return to menu (☰)
-5. Press ESC to return to the main menu
+Reading single syllables. Choose the order (consonant + vowel, vowel + consonant,
+or mixed), pick which letters to practise, optionally include soft-sign syllables,
+then run flashcards or the 3D driving game. Each card can show a чистоговорка or
+a sample word with the syllable highlighted.
 
-## Future Plans
+### Популярные слова (`src/apps/popular-words/`)
 
-This repository will grow to include additional educational applications for:
-- Math exercises
-- Memory games
-- Reading practice
-- And more...
+The 1000 most common words of the chosen language, in frequency order, each split
+into «склады» (max two letters): мо-я, иг-ра-ет. A range picker lets you work
+through the list a hundred words at a time.
 
-## Technical Details
+### Предложения (`src/apps/sentences/`)
 
-All applications are built as standalone HTML files using:
-- React 18 (via CDN)
-- Tailwind CSS (via CDN)
-- No build process required
-- No dependencies to install
+Short graded sentences across four levels (100 per level), from «вот кот» to full
+sentences, split into «склады» the same way.
 
-Simply open any `.html` file in a modern web browser to start using the app.
+All three share: uppercase/lowercase toggle, sound, background themes,
+shuffle/in-order, show/hide hyphens, and keyboard navigation
+(SPACE / ← → / ESC).
 
-## Project Structure
+## Running locally
 
-```
-Kids/
-├── syllables-app/
-│   └── syllables-app.html
-├── README.md
-└── CLAUDE.md
+```bash
+npm install
+npm run dev      # http://localhost:5173/kids/
+npm run build    # production build into dist/
 ```
 
-Each future app will have its own directory with self-contained files.
+## Project structure
+
+```
+src/
+├── App.jsx                     — home page, routing, language picker
+├── shared/
+│   ├── i18n/                   — languages, UI strings, language context
+│   ├── utils/                  — orthography, syllable generation, splitting, speech
+│   └── components/             — shared icons
+└── apps/
+    ├── syllables/              — syllables app + чистоговорки and sample words
+    ├── syllables-3d-game/      — the 3D driving game
+    ├── popular-words/          — word lists (ru / be / uk)
+    └── sentences/              — graded sentences (ru / be / uk)
+```
+
+`syllables-app/syllables-app.html` is the original standalone single-file version,
+kept for reference.
+
+## Technical details
+
+- React 18 + React Router (hash routing, so it works from a static host)
+- Tailwind CSS
+- Vite build
+- Web Speech API for text-to-speech
 
 ## License
 

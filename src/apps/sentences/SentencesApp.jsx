@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { sentenceLevels, allSentences } from './sentencesData';
+import { getSentenceLevels, getAllSentences } from './sentencesData';
 import { splitToWarehouses } from '../../shared/utils/syllableSplit';
-import { isVowel } from '../../shared/utils/russianOrthography';
+import { isVowel } from '../../shared/utils/orthography';
+import { useLanguage } from '../../shared/i18n/LanguageContext';
 import { BACKGROUNDS } from '../syllables/constants';
 import { speak, cancelSpeech } from '../../shared/utils/speech';
 import { SoundOnIcon, SoundOffIcon, PaletteIcon, MenuIcon, ShuffleIcon } from '../../shared/components/Icons';
@@ -10,11 +11,15 @@ import { SoundOnIcon, SoundOffIcon, PaletteIcon, MenuIcon, ShuffleIcon } from '.
 /**
  * SentencesApp
  *
- * «Учим предложения» — reads short, graded Russian sentences. Every word is
- * split into «склады» (max two letters) with the shared syllableSplit util.
+ * «Учим предложения» — reads short, graded sentences in the language chosen on
+ * the home page. Every word is split into «склады» (max two letters) with the
+ * shared, language-aware syllableSplit util.
  */
 const SentencesApp = () => {
   const navigate = useNavigate();
+  const { lang, t, fill } = useLanguage();
+  const sentenceLevels = getSentenceLevels(lang);
+  const allSentences = getAllSentences(lang);
   const [levelIndex, setLevelIndex] = useState(0); // 0-based, or null = все уровни
   const [index, setIndex] = useState(0);
   const [animate, setAnimate] = useState(false);
@@ -34,12 +39,13 @@ const SentencesApp = () => {
   const background = BACKGROUNDS[bgIndex];
   const isDark = background.value === 'bg-gray-900';
 
-  const sentence = sentences[Math.min(index, total - 1)];
+  const safeIndex = Math.min(index, total - 1);
+  const sentence = sentences[safeIndex];
   const words = sentence.split(' ');
 
   const speakSentence = useCallback((text) => {
-    speak(text, { rate: 0.85, pitch: 1.1 });
-  }, []);
+    speak(text, { rate: 0.85, pitch: 1.1, lang });
+  }, [lang]);
 
   const randomIndex = useCallback(() => {
     if (total <= 1) return 0;
@@ -87,6 +93,14 @@ const SentencesApp = () => {
     setShuffle(s => !s);
   };
 
+  // Смена языка — начинаем с первого уровня: наборы предложений другие.
+  useEffect(() => {
+    setLevelIndex(0);
+    setIndex(0);
+    setHistory([0]);
+    setHistPos(0);
+  }, [lang]);
+
   const chooseLevel = (li) => {
     setLevelIndex(li);
     setIndex(0);
@@ -117,7 +131,7 @@ const SentencesApp = () => {
   }, [next, prev, navigate, showLevels]);
 
   // Consonants blue, vowels red (as in the syllables app).
-  const charColor = (ch) => isVowel(ch)
+  const charColor = (ch) => isVowel(ch, lang)
     ? (isDark ? 'text-red-400' : 'text-red-600')
     : (isDark ? 'text-blue-400' : 'text-blue-600');
   const fmt = (s) => (isUpperCase ? s.toUpperCase() : s);
@@ -150,7 +164,7 @@ const SentencesApp = () => {
         onClick={(e) => e.stopPropagation()}
       >
         <div className={`bg-opacity-80 ${isDark ? 'bg-white text-gray-900' : 'bg-gray-900 text-white'} rounded-full px-3 py-2 md:px-6 md:py-3 shadow-lg text-lg md:text-2xl font-bold`}>
-          {index + 1} / {total}
+          {safeIndex + 1} / {total}
         </div>
 
         {/* Level picker */}
@@ -159,20 +173,20 @@ const SentencesApp = () => {
           className={`rounded-full px-3 py-2 md:px-6 md:py-3 shadow-lg text-base md:text-xl font-bold transition ${
             levelIndex === null ? (isDark ? 'bg-white text-gray-700 hover:bg-gray-100' : 'bg-gray-900 text-white hover:bg-gray-800') : 'bg-green-500 text-white'
           }`}
-          title="Выбрать уровень"
+          title={t.sentences.levelPick}
         >
-          {currentLevel ? `Ур. ${currentLevel.id}` : 'Все'}
+          {currentLevel ? fill(t.sentences.levelShort, { n: currentLevel.id }) : t.sentences.allShort}
         </button>
 
-        <button onClick={() => setIsUpperCase(!isUpperCase)} className={controlBtn} title="Переключить регистр">
+        <button onClick={() => setIsUpperCase(!isUpperCase)} className={controlBtn} title={t.display.toggleCase}>
           {isUpperCase ? 'АБ' : 'аб'}
         </button>
 
-        <button onClick={() => setSoundEnabled(!soundEnabled)} className={toggleBtn(soundEnabled)} title={soundEnabled ? 'Выключить звук' : 'Включить звук'}>
+        <button onClick={() => setSoundEnabled(!soundEnabled)} className={toggleBtn(soundEnabled)} title={soundEnabled ? t.display.soundOff : t.display.soundOn}>
           {soundEnabled ? <SoundOnIcon /> : <SoundOffIcon />}
         </button>
 
-        <button onClick={toggleShuffle} className={toggleBtn(shuffle)} title={shuffle ? 'Вперемешку (нажми — по порядку)' : 'По порядку (нажми — вперемешку)'}>
+        <button onClick={toggleShuffle} className={toggleBtn(shuffle)} title={shuffle ? t.common.shuffleOn : t.common.shuffleOff}>
           <ShuffleIcon width={22} height={22} />
         </button>
 
@@ -181,16 +195,16 @@ const SentencesApp = () => {
           className={`rounded-full px-3 py-2 md:px-6 md:py-3 shadow-lg text-lg md:text-2xl font-bold leading-none transition ${
             showDashes ? 'bg-green-500 text-white' : isDark ? 'bg-white text-gray-700' : 'bg-gray-900 text-white'
           }`}
-          title={showDashes ? 'Скрыть дефисы' : 'Показать дефисы'}
+          title={showDashes ? t.common.dashesHide : t.common.dashesShow}
         >
           а‑б
         </button>
 
-        <button onClick={() => setBgIndex((bgIndex + 1) % BACKGROUNDS.length)} className={controlBtn} title="Сменить фон">
+        <button onClick={() => setBgIndex((bgIndex + 1) % BACKGROUNDS.length)} className={controlBtn} title={t.display.changeBg}>
           <PaletteIcon />
         </button>
 
-        <button onClick={() => navigate('/')} className={controlBtn} title="В меню">
+        <button onClick={() => navigate('/')} className={controlBtn} title={t.common.toMenu}>
           <MenuIcon />
         </button>
       </div>
@@ -202,7 +216,7 @@ const SentencesApp = () => {
         className={`absolute z-10 left-3 bottom-20 md:left-6 md:bottom-auto md:top-1/2 md:-translate-y-1/2 rounded-full w-12 h-12 md:w-20 md:h-20 shadow-lg text-3xl md:text-5xl font-bold transition ${
           isDark ? 'bg-white/80 text-gray-800 hover:bg-white' : 'bg-gray-900/70 text-white hover:bg-gray-900'
         }`}
-        title="Предыдущее"
+        title={t.sentences.prev}
       >
         ‹
       </button>
@@ -211,7 +225,7 @@ const SentencesApp = () => {
         className={`absolute z-10 right-3 bottom-20 md:right-6 md:bottom-auto md:top-1/2 md:-translate-y-1/2 rounded-full w-12 h-12 md:w-20 md:h-20 shadow-lg text-3xl md:text-5xl font-bold transition ${
           isDark ? 'bg-white/80 text-gray-800 hover:bg-white' : 'bg-gray-900/70 text-white hover:bg-gray-900'
         }`}
-        title="Следующее"
+        title={t.sentences.next}
       >
         ›
       </button>
@@ -226,15 +240,15 @@ const SentencesApp = () => {
           }`}
         >
           <div
-            className="font-bold select-none flex flex-wrap justify-center items-baseline gap-x-[0.45em] gap-y-2 leading-tight"
+            className="font-bold select-none flex flex-wrap justify-center items-baseline gap-x-[0.72em] gap-y-2 leading-tight"
             style={{ fontSize }}
           >
             {words.map((word, wi) => (
               <span key={wi} className="inline-flex items-baseline">
-                {splitToWarehouses(word).map((wh, i) => (
+                {splitToWarehouses(word, lang).map((wh, i) => (
                   <span key={i} className="inline-flex items-baseline">
                     {i > 0 && showDashes && (
-                      <span className={`${isDark ? 'text-gray-600' : 'text-gray-300'} px-[0.03em]`}>-</span>
+                      <span className={`${isDark ? 'text-gray-600' : 'text-gray-300'} text-[0.7em] -mx-[0.02em]`}>-</span>
                     )}
                     {wh.split('').map((ch, ci) => (
                       <span key={ci} className={charColor(ch)}>{fmt(ch)}</span>
@@ -254,7 +268,7 @@ const SentencesApp = () => {
         } bg-opacity-80`}
         onClick={(e) => e.stopPropagation()}
       >
-        ПРОБЕЛ или экран — дальше · ← → листать
+        {t.common.navHint}
       </div>
 
       {/* Level picker panel */}
@@ -268,7 +282,7 @@ const SentencesApp = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="text-2xl md:text-3xl font-bold text-purple-600 text-center mb-6">
-              Уровень сложности
+              {t.sentences.levelTitle}
             </h2>
 
             <div className="space-y-3 mb-4">
@@ -297,10 +311,10 @@ const SentencesApp = () => {
                 }`}
               >
                 <div className="text-xl font-bold text-gray-800 flex items-center justify-between">
-                  Все уровни
+                  {t.sentences.allLevels}
                   <span className="text-sm font-semibold text-gray-400">{allSentences.length}</span>
                 </div>
-                <div className="text-gray-500">Все предложения подряд</div>
+                <div className="text-gray-500">{t.sentences.allLevelsHint}</div>
               </button>
             </div>
 
@@ -308,7 +322,7 @@ const SentencesApp = () => {
               onClick={() => setShowLevels(false)}
               className="w-full py-3 rounded-xl text-lg font-bold bg-gray-200 text-gray-700 hover:bg-gray-300 transition"
             >
-              Закрыть
+              {t.sentences.close}
             </button>
           </div>
         </div>

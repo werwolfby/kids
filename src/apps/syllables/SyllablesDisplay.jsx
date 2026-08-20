@@ -1,6 +1,7 @@
 import { SoundOnIcon, SoundOffIcon, PaletteIcon, MenuIcon, BookIcon } from '../../shared/components/Icons';
 import { BACKGROUNDS } from './constants';
-import { isConsonant } from '../../shared/utils/russianOrthography';
+import { isConsonant, getSoftSign } from '../../shared/utils/orthography';
+import { useLanguage } from '../../shared/i18n/LanguageContext';
 import { getChistogovorka } from './chistogovorki';
 import { getWordForSyllable } from './words';
 
@@ -54,11 +55,12 @@ const SyllablesDisplay = ({
   onShowMenu,
   onNextSyllable
 }) => {
+  const { lang, t } = useLanguage();
   const background = BACKGROUNDS[bgIndex];
   const isDark = background.value === 'bg-gray-900';
-  const rhyme = getChistogovorka(currentSyllable);
+  const rhyme = getChistogovorka(currentSyllable, lang);
   // Fall back to a sample word (with the syllable highlighted) when no rhyme exists.
-  const sampleWord = rhyme ? null : getWordForSyllable(currentSyllable);
+  const sampleWord = rhyme ? null : getWordForSyllable(currentSyllable, lang);
 
   const formatSyllableChar = (char, index) => {
     const formattedChar = isUpperCase ? char.toUpperCase() : char;
@@ -66,7 +68,7 @@ const SyllablesDisplay = ({
     // Color by letter type so it stays correct for CV, VC, and mixed orders:
     // consonants are blue, vowels are red.
     const isDark = background.value === 'bg-gray-900';
-    const colorClass = isConsonant(char)
+    const colorClass = isConsonant(char, lang)
       ? (isDark ? 'text-blue-400' : 'text-blue-600')
       : (isDark ? 'text-red-400' : 'text-red-600');
 
@@ -94,7 +96,7 @@ const SyllablesDisplay = ({
           className={`rounded-full px-3 py-2 md:px-6 md:py-3 shadow-lg text-base md:text-xl font-bold transition ${
             background.value === 'bg-gray-900' ? 'bg-white text-gray-700 hover:bg-gray-100' : 'bg-gray-900 text-white hover:bg-gray-800'
           }`}
-          title="Переключить регистр"
+          title={t.display.toggleCase}
         >
           {isUpperCase ? 'АБ' : 'аб'}
         </button>
@@ -107,7 +109,7 @@ const SyllablesDisplay = ({
               ? 'bg-green-500 text-white'
               : background.value === 'bg-gray-900' ? 'bg-white text-gray-700' : 'bg-gray-900 text-white'
           }`}
-          title={soundEnabled ? 'Выключить звук' : 'Включить звук'}
+          title={soundEnabled ? t.display.soundOff : t.display.soundOn}
         >
           {soundEnabled ? <SoundOnIcon /> : <SoundOffIcon />}
         </button>
@@ -120,7 +122,7 @@ const SyllablesDisplay = ({
               ? 'bg-green-500 text-white'
               : background.value === 'bg-gray-900' ? 'bg-white text-gray-700' : 'bg-gray-900 text-white'
           }`}
-          title={showHints ? 'Скрыть подсказки' : 'Показать подсказки'}
+          title={showHints ? t.display.hintsHide : t.display.hintsShow}
         >
           <BookIcon />
         </button>
@@ -131,7 +133,7 @@ const SyllablesDisplay = ({
           className={`rounded-full px-3 py-2 md:px-6 md:py-3 shadow-lg text-base md:text-xl font-bold transition ${
             background.value === 'bg-gray-900' ? 'bg-white text-gray-700 hover:bg-gray-100' : 'bg-gray-900 text-white hover:bg-gray-800'
           }`}
-          title="Сменить фон"
+          title={t.display.changeBg}
         >
           <PaletteIcon />
         </button>
@@ -142,7 +144,7 @@ const SyllablesDisplay = ({
           className={`rounded-full px-3 py-2 md:px-6 md:py-3 shadow-lg text-base md:text-xl font-bold transition ${
             background.value === 'bg-gray-900' ? 'bg-white text-gray-700 hover:bg-gray-100' : 'bg-gray-900 text-white hover:bg-gray-800'
           }`}
-          title="Меню"
+          title={t.display.menu}
         >
           <MenuIcon />
         </button>
@@ -169,7 +171,7 @@ const SyllablesDisplay = ({
             <div className={`text-base md:text-2xl font-bold ${
               background.value === 'bg-gray-900' ? 'text-red-600' : 'text-red-400'
             }`}>
-              {[...(selectedVowels || []), ...(softSign ? ['ь'] : [])]
+              {[...(selectedVowels || []), ...(softSign ? [getSoftSign(lang)] : [])]
                 .map(v => v.toUpperCase()).join(' ')}
             </div>
           )}
@@ -218,7 +220,7 @@ const SyllablesDisplay = ({
         } bg-opacity-80`}
         onClick={(e) => e.stopPropagation()}
       >
-        Нажми ПРОБЕЛ или экран для следующего слога
+        {t.display.nextHint}
       </div>
     </div>
   );
