@@ -269,6 +269,7 @@ const SentencesApp = () => {
             tracking={tracking}
             onSyllable={speakSyllable}
             onInteract={noteTracking}
+            sliderLabel={t.common.trackHint}
           />
         </div>
       </div>

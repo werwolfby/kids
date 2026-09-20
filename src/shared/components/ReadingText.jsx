@@ -3,25 +3,28 @@ import { isVowel } from '../utils/orthography';
 import { splitToWarehouses } from '../utils/syllableSplit';
 
 /**
- * ReadingText — текст, разбитый на «склады», плюс «ползунок» для чтения пальчиком.
+ * ReadingText — текст, разбитый на «склады», плюс «ползунок» для чтения.
  *
  * Обычный режим: просто рисует слово или предложение по складам (гласные красные,
- * согласные синие, между складами дефис) — как это было в приложениях раньше.
+ * согласные синие, между складами дефис).
  *
- * Режим `tracking` (как в reading.com): ребёнок ведёт пальцем по строке, буква под
- * пальцем подсвечивается «таблеткой», весь склад — мягкой подложкой, а под буквой
- * едет ползунок. Палец можно вести и под строкой: берётся ближайшая строка, потом
- * ближайшая буква в ней. Когда палец заходит в новый склад, вызывается `onSyllable`
+ * Режим `tracking`: под текстом появляется ползунок — полоска с бегунком, как у
+ * прогресс-бара. Ребёнок тянет бегунок пальцем СНИЗУ, поэтому палец не закрывает
+ * буквы. Полоска поделена на равные кусочки по числу букв, так что бегунок идёт
+ * по тексту слева направо (в предложениях — и по строкам). Текущая буква
+ * подсвечена «таблеткой», её склад — мягкой подложкой, а всё прочитанное слева
+ * становится серым. Когда бегунок заходит в новый склад, вызывается `onSyllable`
  * (приложение озвучивает склад, если звук включён).
  *
  * @param {string} text — слово или предложение (слова через пробел)
  * @param {string} lang — 'ru' | 'be' | 'uk', нужен для разбивки и цвета букв
  * @param {string} fontSize — CSS-размер шрифта для всего текста
  * @param {string} className — классы раскладки для строки текста (flex, leading, …)
- * @param {boolean} tracking — включён ли ползунок
- * @param {Function} onSyllable — (syllable) => void, палец вошёл в новый склад
- * @param {Function} onInteract — вызывается в начале и в конце ведения пальцем,
- *   чтобы приложение не приняло это движение за клик «следующее слово»
+ * @param {boolean} tracking — показывать ли ползунок
+ * @param {Function} onSyllable — (syllable) => void, бегунок вошёл в новый склад
+ * @param {Function} onInteract — вызывается в начале и в конце перетаскивания,
+ *   чтобы приложение не приняло его за клик «следующая карточка»
+ * @param {string} sliderLabel — подпись ползунка для скринридера
  */
 const ReadingText = ({
   text,
@@ -34,17 +37,21 @@ const ReadingText = ({
   tracking = false,
   onSyllable = null,
   onInteract = null,
+  sliderLabel = '',
 }) => {
   const boxRef = useRef(null);
+  const railRef = useRef(null);
   const charRefs = useRef([]);
   const rectsRef = useRef([]);     // прямоугольники букв относительно бокса
   const staleRef = useRef(true);   // размеры устарели (сменился текст / шрифт)
   const activeRef = useRef(-1);    // то же, что active, но без задержки рендера
   const syllableRef = useRef(null);
+  const draggingRef = useRef(false);
   const [active, setActive] = useState(-1);
+  const [, setTick] = useState(0); // перерисовка после нового замера
 
   // Плоская модель: слова → склады → буквы. У каждой буквы сквозной индекс,
-  // по нему находятся и DOM-узел, и прямоугольник.
+  // по нему находятся и DOM-узел, и прямоугольник, и место на ползунке.
   const model = useMemo(() => {
     const items = [];
     const words = text.split(' ').filter(Boolean).map((word, wi) => ({
@@ -64,6 +71,8 @@ const ReadingText = ({
     return { words, items };
   }, [text, lang]);
 
+  const total = model.items.length;
+
   // Замер положения каждой буквы. Координаты — относительно бокса, чтобы
   // подсветку можно было рисовать абсолютным позиционированием.
   const measure = useCallback(() => {
@@ -74,31 +83,22 @@ const ReadingText = ({
       const el = charRefs.current[i];
       if (!el) return null;
       const r = el.getBoundingClientRect();
-      return {
-        index: i,
-        top: r.top,
-        bottom: r.bottom,
-        left: r.left,
-        right: r.right,
-        x: r.left - base.left,
-        y: r.top - base.top,
-        w: r.width,
-        h: r.height,
-      };
+      return { x: r.left - base.left, y: r.top - base.top, w: r.width, h: r.height };
     });
     staleRef.current = false;
+    setTick(v => v + 1);
   }, [model]);
 
-  // Сменился текст или оформление — старые размеры больше не годятся.
-  // Пересчёт с задержкой: карточка в этот момент ещё анимируется (scale),
-  // а во время трансформации getBoundingClientRect() врёт.
+  // Сменился текст или оформление — ползунок в начало, размеры пересчитать.
+  // С задержкой: карточка в этот момент ещё анимируется (scale), а во время
+  // трансформации getBoundingClientRect() врёт.
   useEffect(() => {
     staleRef.current = true;
-    setActive(-1);
     activeRef.current = -1;
     syllableRef.current = null;
+    setActive(-1);
     const id = setTimeout(() => { if (tracking) measure(); }, 220);
-    const onResize = () => { staleRef.current = true; };
+    const onResize = () => { staleRef.current = true; measure(); };
     window.addEventListener('resize', onResize);
     return () => {
       clearTimeout(id);
@@ -106,79 +106,57 @@ const ReadingText = ({
     };
   }, [text, fontSize, isUpperCase, showDashes, tracking, measure]);
 
-  // Буква под пальцем: сначала ближайшая строка (палец может вести и под текстом),
-  // потом ближайшая буква внутри этой строки.
-  const pick = (x, y) => {
-    const rects = rectsRef.current;
-    let lineTop = null;
-    let bestDy = Infinity;
-    for (const r of rects) {
-      if (!r) continue;
-      const dy = y < r.top ? r.top - y : y > r.bottom ? y - r.bottom : 0;
-      if (dy < bestDy - 0.5) { bestDy = dy; lineTop = r.top; }
+  // Положение пальца на полоске → номер буквы. Полоска поделена на равные
+  // кусочки: сколько букв, столько кусочков.
+  const moveTo = useCallback((clientX) => {
+    const rail = railRef.current;
+    if (!rail || !total) return;
+    const r = rail.getBoundingClientRect();
+    const ratio = (clientX - r.left) / (r.width || 1);
+    const i = Math.max(0, Math.min(total - 1, Math.floor(ratio * total)));
+    if (i === activeRef.current) return;
+
+    if (staleRef.current) measure();
+    activeRef.current = i;
+    setActive(i);
+
+    const item = model.items[i];
+    if (item.key !== syllableRef.current) {
+      syllableRef.current = item.key;
+      if (onSyllable) onSyllable(item.syllable, item);
     }
-    if (lineTop === null) return -1;
-
-    let best = -1;
-    let bestDx = Infinity;
-    for (const r of rects) {
-      if (!r || Math.abs(r.top - lineTop) > Math.max(4, r.h * 0.5)) continue;
-      const dx = x < r.left ? r.left - x : x > r.right ? x - r.right : 0;
-      if (dx < bestDx) { bestDx = dx; best = r.index; }
-    }
-    return best;
-  };
-
-  const track = (e) => {
-    if (!tracking) return;
-    if (staleRef.current || !rectsRef.current.length) measure();
-    const index = pick(e.clientX, e.clientY);
-    if (index === activeRef.current) return;
-    activeRef.current = index;
-    setActive(index);
-
-    const item = index >= 0 ? model.items[index] : null;
-    const key = item ? item.key : null;
-    if (key !== syllableRef.current) {
-      syllableRef.current = key;
-      if (item && onSyllable) onSyllable(item.syllable, item);
-    }
-  };
-
-  const clear = () => {
-    activeRef.current = -1;
-    syllableRef.current = null;
-    setActive(-1);
-  };
+  }, [total, model, measure, onSyllable]);
 
   const handleDown = (e) => {
-    if (!tracking) return;
+    e.stopPropagation();
+    draggingRef.current = true;
     e.currentTarget.setPointerCapture?.(e.pointerId);
     if (onInteract) onInteract();
-    measure();
-    track(e);
+    moveTo(e.clientX);
   };
 
-  const handleUp = (e) => {
-    if (!tracking) return;
-    // Палец мог уехать с карточки — сообщаем приложению, что это было ведение,
-    // а не клик «следующее слово» (браузер шлёт click общему предку).
+  const handleMove = (e) => {
+    if (draggingRef.current) moveTo(e.clientX);
+  };
+
+  const handleUp = () => {
+    // Бегунок остаётся там, где его отпустили: это ползунок, а не подсветка
+    // под пальцем. Приложению сообщаем, что это было перетаскивание.
+    draggingRef.current = false;
     if (onInteract) onInteract();
-    // Мышь просто «водит» без нажатия — подсветку снимает уход курсора.
-    if (e.pointerType !== 'mouse') clear();
   };
 
-  const handleCancel = () => {
-    if (onInteract) onInteract();
-    clear();
-  };
-
-  const charColor = (ch) => (isVowel(ch, lang)
-    ? (isDark ? 'text-red-400' : 'text-red-600')
-    : (isDark ? 'text-blue-400' : 'text-blue-600'));
   const fmt = (s) => (isUpperCase ? s.toUpperCase() : s);
+  const charColor = (item) => {
+    if (active >= 0 && item.index < active) {
+      return isDark ? 'text-gray-600' : 'text-gray-400';   // уже прочитано
+    }
+    return isVowel(item.ch, lang)
+      ? (isDark ? 'text-red-400' : 'text-red-600')
+      : (isDark ? 'text-blue-400' : 'text-blue-600');
+  };
 
-  // Подсветка: таблетка под буквой и мягкая подложка под всем складом.
+  // Подсветка: таблетка под текущей буквой и подложка под всем её складом.
   const letterRect = active >= 0 ? rectsRef.current[active] : null;
   const activeItem = active >= 0 ? model.items[active] : null;
   const syllableRect = activeItem && letterRect
@@ -187,11 +165,14 @@ const ReadingText = ({
       const r = rectsRef.current[it.index];
       if (!r) return acc;
       if (!acc) return { x: r.x, y: r.y, w: r.w, h: r.h };
-      const right = Math.max(acc.x + acc.w, r.x + r.w);
-      const bottom = Math.max(acc.y + acc.h, r.y + r.h);
       const x = Math.min(acc.x, r.x);
       const y = Math.min(acc.y, r.y);
-      return { x, y, w: right - x, h: bottom - y };
+      return {
+        x,
+        y,
+        w: Math.max(acc.x + acc.w, r.x + r.w) - x,
+        h: Math.max(acc.y + acc.h, r.y + r.h) - y,
+      };
     }, null)
     : null;
 
@@ -202,17 +183,11 @@ const ReadingText = ({
     height: r.h + py * 2,
   });
 
+  // Бегунок стоит в середине «своего» кусочка полоски; до первого касания — слева.
+  const pct = active < 0 || !total ? 0 : ((active + 0.5) / total) * 100;
+
   return (
-    <div
-      ref={boxRef}
-      className={`relative ${tracking ? 'finger-track cursor-pointer pb-8 md:pb-10' : ''}`}
-      onPointerDown={handleDown}
-      onPointerMove={track}
-      onPointerUp={handleUp}
-      onPointerCancel={handleCancel}
-      onPointerLeave={clear}
-      onClick={tracking ? (e) => e.stopPropagation() : undefined}
-    >
+    <div ref={boxRef} className="relative">
       {/* Подложка текущего склада */}
       {tracking && syllableRect && (
         <div
@@ -233,7 +208,8 @@ const ReadingText = ({
         />
       )}
 
-      <div className={`relative font-bold select-none ${className}`} style={{ fontSize }}>
+      {/* Сам текст: по нему не водят, поэтому он не перехватывает касания */}
+      <div className={`relative font-bold select-none pointer-events-none ${className}`} style={{ fontSize }}>
         {model.words.map((word, wi) => (
           <span key={wi} className="inline-flex items-baseline">
             {word.parts.map((part, si) => (
@@ -245,7 +221,7 @@ const ReadingText = ({
                   <span
                     key={item.index}
                     ref={(el) => { charRefs.current[item.index] = el; }}
-                    className={`inline-block transition-transform duration-75 ${charColor(item.ch)} ${
+                    className={`inline-block transition-all duration-75 ${charColor(item)} ${
                       active === item.index ? 'scale-110' : ''
                     }`}
                   >
@@ -258,19 +234,43 @@ const ReadingText = ({
         ))}
       </div>
 
-      {/* Ползунок — едет под текущей буквой */}
-      {tracking && letterRect && (
+      {/* Ползунок под текстом: тянем бегунок пальцем, палец не закрывает буквы */}
+      {tracking && (
         <div
-          className={`absolute rounded-full transition-all duration-75 ease-out pointer-events-none ${
-            isDark ? 'bg-purple-300' : 'bg-purple-600'
-          }`}
-          style={{
-            left: letterRect.x - letterRect.w * 0.15,
-            top: letterRect.y + letterRect.h + Math.max(4, letterRect.h * 0.06),
-            width: letterRect.w * 1.3,
-            height: Math.max(5, letterRect.h * 0.07),
-          }}
-        />
+          className="finger-track mt-5 md:mt-8 px-6 py-3 mx-auto w-[min(72vw,560px)] max-w-full cursor-pointer"
+          onPointerDown={handleDown}
+          onPointerMove={handleMove}
+          onPointerUp={handleUp}
+          onPointerCancel={handleUp}
+          onClick={(e) => e.stopPropagation()}
+          role="slider"
+          aria-label={sliderLabel}
+          aria-valuemin={1}
+          aria-valuemax={total}
+          aria-valuenow={active + 1}
+        >
+          <div
+            ref={railRef}
+            className={`relative h-3 md:h-4 rounded-full ${isDark ? 'bg-white/20' : 'bg-gray-200'}`}
+          >
+            {/* Пройденная часть */}
+            <div
+              className={`absolute inset-y-0 left-0 rounded-full transition-all duration-75 ease-out ${
+                isDark ? 'bg-purple-400' : 'bg-purple-500'
+              }`}
+              style={{ width: `${pct}%` }}
+            />
+            {/* Бегунок */}
+            <div
+              className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 flex items-center justify-center rounded-full shadow-lg transition-all duration-75 ease-out w-11 h-11 md:w-14 md:h-14 text-xl md:text-2xl border-4 ${
+                isDark ? 'bg-gray-900 border-purple-300' : 'bg-white border-purple-500'
+              }`}
+              style={{ left: `${pct}%` }}
+            >
+              👆
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

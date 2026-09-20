@@ -108,17 +108,20 @@ to practise (empty selection = all), and whether to include soft-sign syllables.
 Under the card the app shows a чистоговорка, or a sample word with the syllable
 highlighted.
 
-### Reading a line with a finger — `src/shared/components/ReadingText.jsx`
+### Reading along with a slider — `src/shared/components/ReadingText.jsx`
 
 Both the words and the sentences app render their text through `ReadingText`: it
 splits every word into «склады» (colouring vowels red and consonants blue) and,
-when `tracking` is on, adds the «ползунок» — the reading.com-style finger
-tracker. It measures every letter's box, picks the nearest line and then the
-nearest letter to the pointer (so the finger may slide *under* the text),
-highlights that letter and its «склад» with absolutely-positioned overlays (no
-layout shift), and calls `onSyllable` when the finger enters a new «склад» — the
-apps use that to pronounce it when sound is on. `onInteract` tells the app that
-a drag happened, so a pointer released outside the card is not taken for a
+when `tracking` is on, draws the «ползунок» under the text — a progress-bar
+slider with a large thumb. The child drags it *below* the line, so the finger
+never covers the letters; the rail is split into one equal slot per letter, so
+the thumb walks the text in reading order (across lines too). The component
+measures every letter's box and highlights the current letter and its «склад»
+with absolutely-positioned overlays (no layout shift), greys out everything
+already read to the left, and calls `onSyllable` when the thumb enters a new
+«склад» — the apps use that to pronounce it when sound is on. The text itself is
+`pointer-events-none`, so tapping it still flips the card; `onInteract` tells the
+app a drag happened, so a pointer released outside the card is not taken for a
 «next card» click.
 
 ### Popular Words (`src/apps/popular-words/`)

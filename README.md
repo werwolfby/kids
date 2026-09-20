@@ -45,15 +45,15 @@ All three share: uppercase/lowercase toggle, sound, background themes,
 shuffle/in-order, show/hide hyphens, and keyboard navigation
 (SPACE / ← → / ESC).
 
-#### Ползунок — reading with a finger (words and sentences)
+#### Ползунок — a slider to read along (words and sentences)
 
-The 👆 button turns on finger tracking, like reading.com: the child drags a
-finger along the line and the letter under it lights up — a pill under the
-letter, a softer one under the whole «склад», and a runner sliding below. The
-finger may also be dragged *under* the text: the nearest line is picked, then
-the nearest letter in it. With sound on, each «склад» is pronounced as the
-finger enters it. While tracking is on, dragging over the card no longer flips
-to the next card — the arrows, SPACE and ← → still do.
+The 👆 button shows a slider under the text — a progress bar with a big thumb
+the child drags with a finger, so the finger never covers the letters. The bar
+is divided into one slot per letter, so the thumb walks the text left to right
+(across lines in sentences). The current letter gets a pill, its «склад» a
+softer one, and everything already read to the left turns grey. With sound on,
+every «склад» is pronounced as the thumb enters it. Dragging the slider does
+not flip the card; tapping the text, the arrows, SPACE and ← → still do.
 
 ## Running locally
 
