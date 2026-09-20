@@ -55,3 +55,7 @@ export const PaletteIcon = ({ className = "" }) => (
 export const MenuIcon = ({ className = "" }) => (
   <span className={className}>☰</span>
 );
+
+export const FingerIcon = ({ className = "" }) => (
+  <span className={className}>👆</span>
+);

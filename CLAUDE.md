@@ -108,6 +108,19 @@ to practise (empty selection = all), and whether to include soft-sign syllables.
 Under the card the app shows a чистоговорка, or a sample word with the syllable
 highlighted.
 
+### Reading a line with a finger — `src/shared/components/ReadingText.jsx`
+
+Both the words and the sentences app render their text through `ReadingText`: it
+splits every word into «склады» (colouring vowels red and consonants blue) and,
+when `tracking` is on, adds the «ползунок» — the reading.com-style finger
+tracker. It measures every letter's box, picks the nearest line and then the
+nearest letter to the pointer (so the finger may slide *under* the text),
+highlights that letter and its «склад» with absolutely-positioned overlays (no
+layout shift), and calls `onSyllable` when the finger enters a new «склад» — the
+apps use that to pronounce it when sound is on. `onInteract` tells the app that
+a drag happened, so a pointer released outside the card is not taken for a
+«next card» click.
+
 ### Popular Words (`src/apps/popular-words/`)
 
 The 1000 most frequent words of the chosen language, split into «склады»
@@ -141,6 +154,8 @@ Vite app and does not have the language picker.
 
 Keep the standard controls consistent across apps: counter, case toggle (АБ/аб),
 sound, background, menu; SPACE / click for next, ← → to page, ESC to leave.
+Apps that show words or sentences also get the 👆 «ползунок» toggle and render
+their text with `ReadingText`.
 
 ### Code Style
 

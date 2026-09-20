@@ -1,12 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getSentenceLevels, getAllSentences } from './sentencesData';
-import { splitToWarehouses } from '../../shared/utils/syllableSplit';
-import { isVowel } from '../../shared/utils/orthography';
 import { useLanguage } from '../../shared/i18n/LanguageContext';
 import { BACKGROUNDS } from '../syllables/constants';
 import { speak, cancelSpeech } from '../../shared/utils/speech';
-import { SoundOnIcon, SoundOffIcon, PaletteIcon, MenuIcon, ShuffleIcon } from '../../shared/components/Icons';
+import ReadingText from '../../shared/components/ReadingText';
+import { SoundOnIcon, SoundOffIcon, PaletteIcon, MenuIcon, ShuffleIcon, FingerIcon } from '../../shared/components/Icons';
 
 /**
  * SentencesApp
@@ -28,6 +27,7 @@ const SentencesApp = () => {
   const [isUpperCase, setIsUpperCase] = useState(false);
   const [shuffle, setShuffle] = useState(false);
   const [showDashes, setShowDashes] = useState(true);
+  const [tracking, setTracking] = useState(false); // ползунок: ведём пальчиком по буквам
   // История просмотра (как в браузере): список показанных индексов + позиция.
   const [history, setHistory] = useState([0]);
   const [histPos, setHistPos] = useState(0);
@@ -41,11 +41,20 @@ const SentencesApp = () => {
 
   const safeIndex = Math.min(index, total - 1);
   const sentence = sentences[safeIndex];
-  const words = sentence.split(' ');
 
   const speakSentence = useCallback((text) => {
     speak(text, { rate: 0.85, pitch: 1.1, lang });
   }, [lang]);
+
+  // Палец дошёл до нового склада — проговариваем его (если звук включён).
+  const speakSyllable = useCallback((syllable) => {
+    if (soundEnabled) speak(syllable, { rate: 0.7, pitch: 1.2, lang });
+  }, [soundEnabled, lang]);
+
+  // Ведение пальцем по буквам не должно листать предложения: если палец
+  // оторвался мимо карточки, браузер шлёт click общему предку — гасим его.
+  const trackedAt = useRef(0);
+  const noteTracking = useCallback(() => { trackedAt.current = Date.now(); }, []);
 
   const randomIndex = useCallback(() => {
     if (total <= 1) return 0;
@@ -86,6 +95,11 @@ const SentencesApp = () => {
       showAt(history[pos], history, pos);
     }
   }, [histPos, history, showAt]);
+
+  const clickNext = useCallback(() => {
+    if (Date.now() - trackedAt.current < 400) return;
+    next();
+  }, [next]);
 
   const toggleShuffle = () => {
     setHistory([index]);
@@ -130,12 +144,6 @@ const SentencesApp = () => {
     return () => window.removeEventListener('keydown', handleKey);
   }, [next, prev, navigate, showLevels]);
 
-  // Consonants blue, vowels red (as in the syllables app).
-  const charColor = (ch) => isVowel(ch, lang)
-    ? (isDark ? 'text-red-400' : 'text-red-600')
-    : (isDark ? 'text-blue-400' : 'text-blue-600');
-  const fmt = (s) => (isUpperCase ? s.toUpperCase() : s);
-
   // Font size tiers by sentence length (it wraps if still too long)
   const len = sentence.length;
   const fontSize =
@@ -156,7 +164,7 @@ const SentencesApp = () => {
   return (
     <div
       className={`min-h-screen ${background.value} flex flex-col items-center justify-center cursor-pointer transition-colors duration-300 overflow-hidden pt-20 pb-32 md:pt-20 md:pb-24`}
-      onClick={next}
+      onClick={clickNext}
     >
       {/* Top Controls */}
       <div
@@ -188,6 +196,15 @@ const SentencesApp = () => {
 
         <button onClick={toggleShuffle} className={toggleBtn(shuffle)} title={shuffle ? t.common.shuffleOn : t.common.shuffleOff}>
           <ShuffleIcon width={22} height={22} />
+        </button>
+
+        {/* Ползунок: ведём пальчиком по буквам */}
+        <button
+          onClick={() => setTracking(tr => !tr)}
+          className={toggleBtn(tracking)}
+          title={tracking ? t.common.trackOn : t.common.trackOff}
+        >
+          <FingerIcon />
         </button>
 
         <button
@@ -232,32 +249,27 @@ const SentencesApp = () => {
 
       {/* Sentence Card */}
       <div
-        className={`transition-all duration-150 ${animate ? 'scale-90 opacity-0' : 'scale-100 opacity-100'} w-full flex justify-center pointer-events-none px-4`}
+        className={`transition-all duration-150 ${animate ? 'scale-90 opacity-0' : 'scale-100 opacity-100'} w-full flex justify-center px-4 ${
+          tracking ? '' : 'pointer-events-none'
+        }`}
       >
         <div
           className={`rounded-[2rem] md:rounded-[3rem] border-4 md:border-8 shadow-2xl px-6 md:px-14 py-6 md:py-10 max-w-[92vw] ${
             isDark ? 'border-gray-500 bg-white/5' : 'border-purple-300 bg-purple-500/5'
           }`}
         >
-          <div
-            className="font-bold select-none flex flex-wrap justify-center items-baseline gap-x-[0.72em] gap-y-2 leading-tight"
-            style={{ fontSize }}
-          >
-            {words.map((word, wi) => (
-              <span key={wi} className="inline-flex items-baseline">
-                {splitToWarehouses(word, lang).map((wh, i) => (
-                  <span key={i} className="inline-flex items-baseline">
-                    {i > 0 && showDashes && (
-                      <span className={`${isDark ? 'text-gray-600' : 'text-gray-300'} text-[0.7em] -mx-[0.02em]`}>-</span>
-                    )}
-                    {wh.split('').map((ch, ci) => (
-                      <span key={ci} className={charColor(ch)}>{fmt(ch)}</span>
-                    ))}
-                  </span>
-                ))}
-              </span>
-            ))}
-          </div>
+          <ReadingText
+            text={sentence}
+            lang={lang}
+            isDark={isDark}
+            isUpperCase={isUpperCase}
+            showDashes={showDashes}
+            fontSize={fontSize}
+            className="flex flex-wrap justify-center items-baseline gap-x-[0.72em] gap-y-2 leading-tight"
+            tracking={tracking}
+            onSyllable={speakSyllable}
+            onInteract={noteTracking}
+          />
         </div>
       </div>
 
@@ -268,7 +280,7 @@ const SentencesApp = () => {
         } bg-opacity-80`}
         onClick={(e) => e.stopPropagation()}
       >
-        {t.common.navHint}
+        {tracking ? t.common.trackHint : t.common.navHint}
       </div>
 
       {/* Level picker panel */}

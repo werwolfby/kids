@@ -1,12 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getPopularWords } from './wordsData';
-import { isVowel } from '../../shared/utils/orthography';
 import { splitToWarehouses } from '../../shared/utils/syllableSplit';
 import { useLanguage } from '../../shared/i18n/LanguageContext';
 import { BACKGROUNDS } from '../syllables/constants';
 import { speak, cancelSpeech } from '../../shared/utils/speech';
-import { SoundOnIcon, SoundOffIcon, PaletteIcon, MenuIcon, ShuffleIcon } from '../../shared/components/Icons';
+import ReadingText from '../../shared/components/ReadingText';
+import { SoundOnIcon, SoundOffIcon, PaletteIcon, MenuIcon, ShuffleIcon, FingerIcon } from '../../shared/components/Icons';
 
 /**
  * PopularWordsApp
@@ -26,6 +26,7 @@ const PopularWordsApp = () => {
   const [isUpperCase, setIsUpperCase] = useState(true);
   const [shuffle, setShuffle] = useState(false);   // вперемешку vs по порядку
   const [showDashes, setShowDashes] = useState(true);
+  const [tracking, setTracking] = useState(false); // ползунок: ведём пальчиком по буквам
   // История просмотра (как в браузере): список показанных индексов + позиция.
   const [history, setHistory] = useState([0]);
   const [histPos, setHistPos] = useState(0);
@@ -54,6 +55,16 @@ const PopularWordsApp = () => {
   const speakWord = useCallback((word) => {
     speak(word, { rate: 0.8, pitch: 1.1, lang });
   }, [lang]);
+
+  // Палец дошёл до нового склада — проговариваем его (если звук включён).
+  const speakSyllable = useCallback((syllable) => {
+    if (soundEnabled) speak(syllable, { rate: 0.7, pitch: 1.2, lang });
+  }, [soundEnabled, lang]);
+
+  // Ведение пальцем по буквам не должно листать слова: если палец оторвался
+  // мимо карточки, браузер шлёт click общему предку — гасим такой клик.
+  const trackedAt = useRef(0);
+  const noteTracking = useCallback(() => { trackedAt.current = Date.now(); }, []);
 
   const randomIndex = useCallback(() => {
     const len = hi - lo + 1;
@@ -94,6 +105,11 @@ const PopularWordsApp = () => {
       showAt(history[pos], history, pos);
     }
   }, [histPos, history, showAt]);
+
+  const clickNext = useCallback(() => {
+    if (Date.now() - trackedAt.current < 400) return;
+    next();
+  }, [next]);
 
   const toggleShuffle = () => {
     setHistory([index]);
@@ -164,12 +180,6 @@ const PopularWordsApp = () => {
     return () => window.removeEventListener('keydown', handleKey);
   }, [next, prev, navigate, showRange]);
 
-  // Consonants blue, vowels red (as in the syllables app).
-  const charColor = (ch) => isVowel(ch, lang)
-    ? (isDark ? 'text-red-400' : 'text-red-600')
-    : (isDark ? 'text-blue-400' : 'text-blue-600');
-  const fmt = (s) => (isUpperCase ? s.toUpperCase() : s);
-
   // Scale font down for longer words so they stay on one line
   // (длина с дефисами: столько знаков реально окажется на экране)
   const displayLen = plainWord.length + warehouses.length - 1;
@@ -182,7 +192,7 @@ const PopularWordsApp = () => {
   return (
     <div
       className={`min-h-screen ${background.value} flex flex-col items-center justify-center cursor-pointer transition-colors duration-300 overflow-hidden pt-20 pb-32 md:pt-20 md:pb-24`}
-      onClick={next}
+      onClick={clickNext}
     >
       {/* Top Controls */}
       <div
@@ -231,6 +241,17 @@ const PopularWordsApp = () => {
           <ShuffleIcon width={22} height={22} />
         </button>
 
+        {/* Ползунок: ведём пальчиком по буквам */}
+        <button
+          onClick={() => setTracking(tr => !tr)}
+          className={`rounded-full px-3 py-2 md:px-6 md:py-3 shadow-lg text-base md:text-xl font-bold transition ${
+            tracking ? 'bg-green-500 text-white' : isDark ? 'bg-white text-gray-700' : 'bg-gray-900 text-white'
+          }`}
+          title={tracking ? t.common.trackOn : t.common.trackOff}
+        >
+          <FingerIcon />
+        </button>
+
         {/* Показать / скрыть дефисы */}
         <button
           onClick={() => setShowDashes(d => !d)}
@@ -273,28 +294,27 @@ const PopularWordsApp = () => {
 
       {/* Word Card (framed, warehouses separated) */}
       <div
-        className={`transition-all duration-150 ${animate ? 'scale-90 opacity-0' : 'scale-100 opacity-100'} w-full flex justify-center pointer-events-none px-4`}
+        className={`transition-all duration-150 ${animate ? 'scale-90 opacity-0' : 'scale-100 opacity-100'} w-full flex justify-center px-4 ${
+          tracking ? '' : 'pointer-events-none'
+        }`}
       >
         <div
           className={`rounded-[2.5rem] md:rounded-[4rem] border-4 md:border-8 shadow-2xl px-6 md:px-16 py-4 md:py-10 ${
             isDark ? 'border-gray-500 bg-white/5' : 'border-purple-300 bg-purple-500/5'
           }`}
         >
-          <div
-            className="font-bold select-none leading-none whitespace-nowrap flex items-baseline"
-            style={{ fontSize: `min(${fontVw}vw, 26vh)` }}
-          >
-            {warehouses.map((wh, i) => (
-              <span key={i} className="flex items-baseline">
-                {i > 0 && showDashes && (
-                  <span className={`${isDark ? 'text-gray-600' : 'text-gray-300'} text-[0.7em] -mx-[0.02em]`}>-</span>
-                )}
-                {wh.split('').map((ch, ci) => (
-                  <span key={ci} className={charColor(ch)}>{fmt(ch)}</span>
-                ))}
-              </span>
-            ))}
-          </div>
+          <ReadingText
+            text={plainWord}
+            lang={lang}
+            isDark={isDark}
+            isUpperCase={isUpperCase}
+            showDashes={showDashes}
+            fontSize={`min(${fontVw}vw, 26vh)`}
+            className="leading-none whitespace-nowrap flex items-baseline"
+            tracking={tracking}
+            onSyllable={speakSyllable}
+            onInteract={noteTracking}
+          />
         </div>
       </div>
 
@@ -305,7 +325,7 @@ const PopularWordsApp = () => {
         } bg-opacity-80`}
         onClick={(e) => e.stopPropagation()}
       >
-        {t.common.navHint}
+        {tracking ? t.common.trackHint : t.common.navHint}
       </div>
 
       {/* Range picker panel */}

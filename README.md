@@ -45,6 +45,16 @@ All three share: uppercase/lowercase toggle, sound, background themes,
 shuffle/in-order, show/hide hyphens, and keyboard navigation
 (SPACE / ← → / ESC).
 
+#### Ползунок — reading with a finger (words and sentences)
+
+The 👆 button turns on finger tracking, like reading.com: the child drags a
+finger along the line and the letter under it lights up — a pill under the
+letter, a softer one under the whole «склад», and a runner sliding below. The
+finger may also be dragged *under* the text: the nearest line is picked, then
+the nearest letter in it. With sound on, each «склад» is pronounced as the
+finger enters it. While tracking is on, dragging over the card no longer flips
+to the next card — the arrows, SPACE and ← → still do.
+
 ## Running locally
 
 ```bash
@@ -61,7 +71,7 @@ src/
 ├── shared/
 │   ├── i18n/                   — languages, UI strings, language context
 │   ├── utils/                  — orthography, syllable generation, splitting, speech
-│   └── components/             — shared icons
+│   └── components/             — shared icons, ReadingText (склады + ползунок)
 └── apps/
     ├── syllables/              — syllables app + чистоговорки and sample words
     ├── syllables-3d-game/      — the 3D driving game

@@ -10,6 +10,15 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* «Ползунок» для чтения пальчиком: жесты не должны скроллить страницу,
+   а долгое нажатие — выделять текст или открывать меню iOS. */
+.finger-track {
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 /* Dual-thumb range slider (two overlapping range inputs share one track).
    The input bodies ignore pointer events so both thumbs stay grabbable. */
 .dual-range {
