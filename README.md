@@ -47,13 +47,14 @@ shuffle/in-order, show/hide hyphens, and keyboard navigation
 
 #### Ползунок — a slider to read along (words and sentences)
 
-The 👆 button shows a slider under the text — a progress bar with a big thumb
-the child drags with a finger, so the finger never covers the letters. The bar
-is divided into one slot per letter, so the thumb walks the text left to right
-(across lines in sentences). The current letter gets a pill, its «склад» a
-softer one, and everything already read to the left turns grey. With sound on,
-every «склад» is pronounced as the thumb enters it. Dragging the slider does
-not flip the card; tapping the text, the arrows, SPACE and ← → still do.
+The 👆 button puts a slider under **every line** of the text — a progress bar
+with a big thumb the child drags with a finger, so the finger never covers the
+letters. Each bar is as wide as its own line and divided into one slot per
+letter of that line; having finished a line, the child grabs the next slider
+below. The current letter gets a pill, its «склад» a softer one, and everything
+already read to the left (including the lines above) turns grey. With sound on,
+every «склад» is pronounced as the thumb enters it. Dragging a slider does not
+flip the card; tapping the text, the arrows, SPACE and ← → still do.
 
 ## Running locally
 
