@@ -136,7 +136,28 @@ shuffle/in-order toggle and browser-like back/forward history.
 
 ### Sentences (`src/apps/sentences/`)
 
-Graded sentences over four levels, split into «склады» the same way.
+Graded sentences over four levels, split into «склады» the same way. Besides the
+levels there is `CUSTOM` — «Свой текст»:
+
+- `customText.js` turns any text into the same kind of sentence list: split on
+  `.!?…;:()` and newlines, digits and punctuation dropped, hyphens replaced by
+  spaces (a hyphen would otherwise become its own «склад»), anything longer than
+  ten words chunked. Kept in `localStorage` under `kids-apps-custom-text`.
+- `CustomTextPanel.jsx` is the panel: topic (+ preset chips), length in words,
+  sentence length (the four levels), a «Придумать рассказ» button, the editable
+  text area, and the API-key field.
+- `src/shared/utils/claudeApi.js` calls the Claude API **from the browser**:
+  model `claude-opus-5`, `dangerouslyAllowBrowser: true` (that is what makes the
+  SDK send `anthropic-dangerous-direct-browser-access`, without which the
+  preflight fails), server-side refusal fallbacks with a retry without them if
+  the beta is unavailable for that key. The key is the user's own, stored in
+  `localStorage` (`kids-apps-claude-key`) — fine for a personal device, not for
+  a shared one. The SDK is `import()`ed lazily, so it is a separate chunk and the
+  app stays offline-only until someone actually asks for a story.
+
+Errors come back as codes (`key`, `auth`, `rate`, `network`, `refusal`, `api`),
+which the panel maps to `t.custom.errors.*` — keep those in sync when adding a
+new failure mode.
 
 ### Legacy standalone app (`syllables-app/syllables-app.html`)
 

@@ -1,6 +1,8 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getSentenceLevels, getAllSentences } from './sentencesData';
+import { loadCustomText, saveCustomText, textToSentences } from './customText';
+import CustomTextPanel from './CustomTextPanel';
 import { useLanguage } from '../../shared/i18n/LanguageContext';
 import { BACKGROUNDS } from '../syllables/constants';
 import { speak, cancelSpeech } from '../../shared/utils/speech';
@@ -13,13 +15,20 @@ import { SoundOnIcon, SoundOffIcon, PaletteIcon, MenuIcon, ShuffleIcon, FingerIc
  * «Учим предложения» — reads short, graded sentences in the language chosen on
  * the home page. Every word is split into «склады» (max two letters) with the
  * shared, language-aware syllableSplit util.
+ *
+ * Кроме готовых уровней есть «Свой текст» (CUSTOM): взрослый пишет или вставляет
+ * свой рассказ — или просит Claude придумать его на заданную тему — и он читается
+ * точно так же, по складам.
  */
+/** Значение levelIndex для своего текста (уровни — числа, «все» — null). */
+const CUSTOM = 'custom';
+
 const SentencesApp = () => {
   const navigate = useNavigate();
   const { lang, t, fill } = useLanguage();
   const sentenceLevels = getSentenceLevels(lang);
   const allSentences = getAllSentences(lang);
-  const [levelIndex, setLevelIndex] = useState(0); // 0-based, or null = все уровни
+  const [levelIndex, setLevelIndex] = useState(0); // 0-based, null = все уровни, CUSTOM = свой текст
   const [index, setIndex] = useState(0);
   const [animate, setAnimate] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(false);
@@ -32,15 +41,23 @@ const SentencesApp = () => {
   const [history, setHistory] = useState([0]);
   const [histPos, setHistPos] = useState(0);
   const [showLevels, setShowLevels] = useState(false);
+  const [showCustom, setShowCustom] = useState(false);
+  const [customText, setCustomText] = useState(loadCustomText);
 
-  const sentences = levelIndex === null ? allSentences : sentenceLevels[levelIndex].sentences;
+  const customSentences = useMemo(() => textToSentences(customText), [customText]);
+
+  const sentences = levelIndex === CUSTOM
+    ? customSentences
+    : levelIndex === null
+      ? allSentences
+      : sentenceLevels[levelIndex].sentences;
   const total = sentences.length;
 
   const background = BACKGROUNDS[bgIndex];
   const isDark = background.value === 'bg-gray-900';
 
-  const safeIndex = Math.min(index, total - 1);
-  const sentence = sentences[safeIndex];
+  const safeIndex = Math.max(0, Math.min(index, total - 1));
+  const sentence = sentences[safeIndex] || '';
 
   const speakSentence = useCallback((text) => {
     speak(text, { rate: 0.85, pitch: 1.1, lang });
@@ -123,6 +140,14 @@ const SentencesApp = () => {
     setShowLevels(false);
   };
 
+  // Свой текст применён: запоминаем его в браузере и читаем.
+  const applyCustomText = (text) => {
+    setCustomText(text);
+    saveCustomText(text);
+    setShowCustom(false);
+    chooseLevel(CUSTOM);
+  };
+
   // Auto-speak the current sentence when it changes (if sound is on)
   useEffect(() => {
     if (soundEnabled) speakSentence(sentence);
@@ -132,6 +157,11 @@ const SentencesApp = () => {
   // Keyboard navigation
   useEffect(() => {
     const handleKey = (e) => {
+      // Открыта панель — только Escape закрывает её; пробел и стрелки нужны полям ввода.
+      if (showCustom) {
+        if (e.code === 'Escape') setShowCustom(false);
+        return;
+      }
       if (showLevels) {
         if (e.code === 'Escape') setShowLevels(false);
         return;
@@ -142,7 +172,7 @@ const SentencesApp = () => {
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [next, prev, navigate, showLevels]);
+  }, [next, prev, navigate, showLevels, showCustom]);
 
   // Font size tiers by sentence length (it wraps if still too long)
   const len = sentence.length;
@@ -159,7 +189,7 @@ const SentencesApp = () => {
     on ? 'bg-green-500 text-white' : isDark ? 'bg-white text-gray-700' : 'bg-gray-900 text-white'
   }`;
 
-  const currentLevel = levelIndex === null ? null : sentenceLevels[levelIndex];
+  const currentLevel = levelIndex === null || levelIndex === CUSTOM ? null : sentenceLevels[levelIndex];
 
   return (
     <div
@@ -183,7 +213,11 @@ const SentencesApp = () => {
           }`}
           title={t.sentences.levelPick}
         >
-          {currentLevel ? fill(t.sentences.levelShort, { n: currentLevel.id }) : t.sentences.allShort}
+          {levelIndex === CUSTOM
+            ? '📝'
+            : currentLevel
+              ? fill(t.sentences.levelShort, { n: currentLevel.id })
+              : t.sentences.allShort}
         </button>
 
         <button onClick={() => setIsUpperCase(!isUpperCase)} className={controlBtn} title={t.display.toggleCase}>
@@ -329,6 +363,22 @@ const SentencesApp = () => {
                 </div>
                 <div className="text-gray-500">{t.sentences.allLevelsHint}</div>
               </button>
+
+              {/* Свой текст: написать самому или попросить Claude придумать рассказ */}
+              <button
+                onClick={() => { setShowLevels(false); setShowCustom(true); }}
+                className={`w-full text-left rounded-2xl p-4 transition border-2 ${
+                  levelIndex === CUSTOM ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                <div className="text-xl font-bold text-gray-800 flex items-center justify-between">
+                  📝 {t.custom.pick}
+                  {customSentences.length > 0 && (
+                    <span className="text-sm font-semibold text-gray-400">{customSentences.length}</span>
+                  )}
+                </div>
+                <div className="text-gray-500">{t.custom.hint}</div>
+              </button>
             </div>
 
             <button
@@ -339,6 +389,18 @@ const SentencesApp = () => {
             </button>
           </div>
         </div>
+      )}
+
+      {/* Свой текст / рассказ на заданную тему */}
+      {showCustom && (
+        <CustomTextPanel
+          t={t}
+          fill={fill}
+          lang={lang}
+          initialText={customText}
+          onApply={applyCustomText}
+          onClose={() => setShowCustom(false)}
+        />
       )}
     </div>
   );

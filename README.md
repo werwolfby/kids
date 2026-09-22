@@ -41,6 +41,22 @@ through the list a hundred words at a time.
 Short graded sentences across four levels (100 per level), from «вот кот» to full
 sentences, split into «склады» the same way.
 
+#### Свой текст — read your own story
+
+The level picker has a fifth entry, «📝 Свой текст». Type or paste any text and
+the app turns it into cards: it splits on `.!?`, drops punctuation and digits,
+turns hyphens into spaces (a hyphen is not a «склад») and cuts anything longer
+than ten words into chunks. The text is kept in `localStorage`, so it survives a
+reload.
+
+The same panel can ask Claude to **write the story for you**: a topic (or one of
+the preset chips), a length in words (20–150) and a sentence length (the same
+four levels). It calls the Claude API straight from the browser with a key you
+paste in yourself — the key lives only in that browser's `localStorage` and goes
+to `api.anthropic.com` and nowhere else. Without a key nothing else changes: the
+app stays entirely offline, and the SDK is only downloaded when you press
+«Придумать рассказ».
+
 All three share: uppercase/lowercase toggle, sound, background themes,
 shuffle/in-order, show/hide hyphens, and keyboard navigation
 (SPACE / ← → / ESC).
@@ -71,7 +87,7 @@ src/
 ├── App.jsx                     — home page, routing, language picker
 ├── shared/
 │   ├── i18n/                   — languages, UI strings, language context
-│   ├── utils/                  — orthography, syllable generation, splitting, speech
+│   ├── utils/                  — orthography, syllable generation, splitting, speech, Claude API
 │   └── components/             — shared icons, ReadingText (склады + ползунок)
 └── apps/
     ├── syllables/              — syllables app + чистоговорки and sample words
